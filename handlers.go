@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/boltdb/bolt"
 	"github.com/dgrijalva/jwt-go"
+	"io"
 	"log"
 	"net/http"
 )
@@ -15,8 +16,17 @@ func (api *API) MessageHandler(w http.ResponseWriter, r *http.Request) {
 	var message Message
 	err := decoder.Decode(&message)
 	if err != nil {
-		// Send reponse
-		panic(err)
+		var returnString string
+		switch {
+		case err == io.EOF:
+			returnString = "Missing body"
+		default:
+			log.Println(err)
+			returnString = "Bad Request"
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(returnString))
+		return
 	}
 	log.Println(message)
 	err = api.db.Update(func(tx *bolt.Tx) error {
@@ -25,7 +35,10 @@ func (api *API) MessageHandler(w http.ResponseWriter, r *http.Request) {
 			return fmt.Errorf("create bucket: %s", err)
 		}
 
-		id, _ := b.NextSequence()
+		id, err := b.NextSequence()
+		if err != nil {
+			return fmt.Errorf("next sequence: %s", err)
+		}
 		return b.Put(itob(id), []byte(message.Message))
 	})
 	if err != nil {
@@ -40,9 +53,16 @@ func (api *API) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	err := decoder.Decode(&login)
 	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(err.Error()))
+		var returnString string
+		switch {
+		case err == io.EOF:
+			returnString = "Missing body"
+		default:
+			log.Println(err)
+			returnString = "Bad Request"
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(returnString))
 		return
 	}
 	if ok, err := api.Authenticate(&login); !ok {
@@ -59,6 +79,72 @@ func (api *API) LoginHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
+		return
 	}
 	w.Write([]byte(fmt.Sprintf("{\"token\": \"%s\"}", ss)))
+}
+func (api *API) MessagesHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var n int
+	err := api.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("notes"))
+		n = b.Stats().KeyN
+		return nil
+	})
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	messages := make([]string, n)
+
+	err = api.db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("notes"))
+		count := 0
+		err = b.ForEach(func(k, v []byte) error {
+			messages[count] = string(v)
+			count += 1
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("create bucket: %s", err)
+		}
+
+		return err
+	})
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	encoder := json.NewEncoder(w)
+	err = encoder.Encode(&messages)
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+}
+func (api *API) ClearMessagesHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	err := api.db.Update(func(tx *bolt.Tx) error {
+		b, err := tx.CreateBucketIfNotExists([]byte("notes"))
+		if err != nil {
+			return fmt.Errorf("create bucket: %s", err)
+		}
+		b.ForEach(func(k, v []byte) error {
+			return b.Delete(k)
+		})
+		return nil
+	})
+	if err != nil {
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(err.Error()))
+		return
+	}
+	w.Write([]byte("OK"))
 }
