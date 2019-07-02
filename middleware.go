@@ -28,5 +28,5 @@ func jwtMiddleware(h http.Handler) http.Handler {
 }
 
 func rateLimitMiddleware(h http.Handler) http.Handler {
-	return tollbooth.LimitHandler(tollbooth.NewLimiter(1, time.Second), h)
+	return tollbooth.LimitHandler(tollbooth.NewLimiter(1, nil), h)
 }
