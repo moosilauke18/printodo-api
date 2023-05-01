@@ -24,7 +24,7 @@ func main() {
 	defer db.Close()
 
 	api := &API{
-		Username:   getEnv("USERNAME", "evan"),
+		Username:   getEnv("USERNAME", "test"),
 		Password:   hash(getEnv("PASSWORD", "test")),
 		Env:        getEnv("ENVIRONMENT", "dev"),
 		SigningKey: []byte(getEnv("JWT_SIGNING_KEY", "A53005C9826E1CA34EA6BC1ECEB68E47")),
@@ -41,14 +41,14 @@ func main() {
 	stdMiddleware := alice.New(
 		timeoutHandler,
 		recoveryHandler,
-		rateLimitMiddleware,
 	)
+	unsecureMiddleware := stdMiddleware.Append(rateLimitMiddleware)
 	secureMiddleware := stdMiddleware.Append(jwtMiddleware)
 
 	r := mux.NewRouter()
 	client := r.Headers("Content-Type", "application/json").Methods("POST").Subrouter()
 	printer := r.Headers("User-Agent", "todo-printer/1.0").Headers("Content-Type", "application/json").Subrouter()
-	client.Handle("/login", stdMiddleware.ThenFunc(api.LoginHandler))
+	client.Handle("/login", unsecureMiddleware.ThenFunc(api.LoginHandler))
 	client.Handle("/message", secureMiddleware.ThenFunc(api.MessageHandler))
 	printer.Handle("/messages", secureMiddleware.ThenFunc(api.MessagesHandler)).Methods("GET")
 	printer.Handle("/messages", secureMiddleware.ThenFunc(api.ClearMessagesHandler)).Methods("DELETE")
