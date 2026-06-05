@@ -397,7 +397,9 @@ function renderWorklist(){
     const pillCats = [...new Set([...w.suggested, ...sel])];
     const pills=pillCats.map(c=>`<button type="button" class="optpill ${sel.has(c)?"sel":""}" data-w="${esc(w.id)}" data-c="${esc(c)}"><span class="tk">&#10003;</span>${esc(c)}</button>`).join("");
     return `<div class="work" data-id="${esc(w.id)}">
-      <div class="txt">${esc(w.text)}</div>
+      ${editingId===w.id
+        ? `<div class="editbox"><input class="editinput" type="text" value="${esc(w.text)}" data-editinput="${w.id}"><button class="editsavebtn" data-editsave="${w.id}">Save</button><button class="cancelbtn" data-editcancel="1">Cancel</button></div>`
+        : `<div class="txt">${esc(w.text)}<button class="editbtn" data-edit="${w.id}" title="Edit note">&#9998;</button></div>`}
       <div class="links">${links}</div>
       <div class="opts">${pills}</div>
       <div class="newrow">
@@ -496,12 +498,12 @@ document.addEventListener("click", e=>{
 
   const eb=e.target.closest(".editbtn");
   if(eb){
-    editingId=Number(eb.dataset.edit); renderHistory();
+    editingId=Number(eb.dataset.edit); renderAll();
     const inp=document.querySelector(`[data-editinput="${editingId}"]`);
     if(inp){ inp.focus(); inp.select(); }
     return;
   }
-  if(e.target.closest("[data-editcancel]")){ editingId=null; renderHistory(); return; }
+  if(e.target.closest("[data-editcancel]")){ editingId=null; renderAll(); return; }
   const es=e.target.closest(".editsavebtn");
   if(es){ saveEdit(Number(es.dataset.editsave)); return; }
 
@@ -537,7 +539,7 @@ document.addEventListener("keydown", e=>{
   const editInp=e.target.closest(".editinput");
   if(editInp){
     if(e.key==="Enter"){ e.preventDefault(); saveEdit(Number(editInp.dataset.editinput)); }
-    else if(e.key==="Escape"){ editingId=null; renderHistory(); }
+    else if(e.key==="Escape"){ editingId=null; renderAll(); }
     return;
   }
   const newInp=e.target.closest("[data-new]");
