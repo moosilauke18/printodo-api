@@ -27,10 +27,10 @@ spec:
             - name: USERNAME
               value: "evan@evanfarrell.com"
             # Postgres — same shared evanfarrell-db cluster and wiring as the
-            # upkeep/homebrewtech apps (doadmin credentials). Uses the existing
-            # "defaultdb" database; GORM AutoMigrate creates printodo's tables.
+            # upkeep/homebrewtech apps (doadmin credentials). Dedicated
+            # "printodo" database; GORM AutoMigrate creates the tables.
             - name: PG_DB
-              value: defaultdb
+              value: printodo
             - name: PG_HOST
               valueFrom:
                 configMapKeyRef:
