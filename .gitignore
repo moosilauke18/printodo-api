@@ -5,3 +5,6 @@ notes.db.imported
 
 # Kubernetes secret with real values — never commit. Use k8s/secret.example.yaml.
 k8s/secret.yaml
+
+# Personal notes data fed to `backport` — not source.
+/backport

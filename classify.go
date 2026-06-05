@@ -93,10 +93,21 @@ The user's existing categories are: %s
 
 Do two things:
 
-1. categories: suggest 1 to 3 short, lowercase category labels for the note as a
-   whole. Strongly prefer reusing an existing category when it fits; only invent
-   a new one when none fit. A note can belong to several categories
-   (e.g. a bow sight -> ["hunting","bow"]).
+1. categories: 0 to 3 short, lowercase category labels describing what the note
+   is about. Rules:
+   - Be SPECIFIC. Choose the most precise category, never a broad catch-all.
+       "Arran", "Aberlour", "Lagavulin" (whisky distilleries/bottles) -> ["scotch"]   (NOT "drinks" or "alcohol")
+       "Robi decking", deck boards/screws -> ["decking"]                               (NOT "hardware" or "home")
+       "seedwell trays", seed-starting supplies -> ["seed starting","garden"]          (NOT "home")
+       a bow sight -> ["hunting","bow"]
+   - NEVER use vague buckets like: misc, other, stuff, general, home, hardware,
+     drinks, alcohol, software, tech, food.
+   - Reuse an existing category when it is the correct specific one; only invent a
+     new specific category when none fit.
+   - A note may have several specific categories.
+   - If you cannot confidently tell what the note refers to, return an EMPTY
+     categories list — it is better to leave it unclassified than to guess. For
+     example an unfamiliar token like "Goosekey.baby" with no clear meaning -> [].
 
 2. links: identify each distinct brand/product/company mentioned in the note and
    give a link to its official website. For each, output {"label","url"} where

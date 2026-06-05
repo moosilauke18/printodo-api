@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/mux"
 	"github.com/justinas/alice"
@@ -16,8 +17,9 @@ var (
 	isDevelopment bool
 )
 
-func main() {
-
+// openAPI opens the database, runs migrations, and builds the API value shared
+// by the server and the backport subcommand.
+func openAPI() *API {
 	db, err := gorm.Open(postgres.Open(buildDSN()), &gorm.Config{})
 	if err != nil {
 		log.Fatal(err)
@@ -35,6 +37,25 @@ func main() {
 	}
 	JWT_SECRET = api.SigningKey
 	isDevelopment = api.Env == "dev"
+	return api
+}
+
+func main() {
+
+	// Subcommand: backport historical notes from a file, then exit. Handled
+	// before opening the DB so `--dry-run` needs no database connection.
+	if len(os.Args) > 1 && os.Args[1] == "backport" {
+		runBackportCLI(os.Args[2:])
+		return
+	}
+
+	// Subcommand: re-run AI classification over existing items, then exit.
+	if len(os.Args) > 1 && os.Args[1] == "reclassify" {
+		runReclassifyCLI(os.Args[2:])
+		return
+	}
+
+	api := openAPI()
 	port := getEnv("PORT", "8000")
 
 	// One-time import of any legacy BoltDB data into Postgres.
