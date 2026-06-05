@@ -1,3 +1,7 @@
 .*.sw*
 printodo-api
 notes.db
+notes.db.imported
+
+# Kubernetes secret with real values — never commit. Use k8s/secret.example.yaml.
+k8s/secret.yaml

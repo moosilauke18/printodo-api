@@ -1,11 +1,11 @@
 package main
 
 import (
-	"encoding/binary"
 	"errors"
-	"golang.org/x/crypto/bcrypt"
 	"log"
 	"os"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 func getEnv(e, d string) string {
@@ -33,9 +33,4 @@ func hash(word string) string {
 		panic(err)
 	}
 	return string(hash)
-}
-func itob(v uint64) []byte {
-	b := make([]byte, 8)
-	binary.BigEndian.PutUint64(b, v)
-	return b
 }

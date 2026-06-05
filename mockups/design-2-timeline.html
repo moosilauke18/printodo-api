@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Printodo — Receipt Timeline</title>
+<!--
+  DESIGN 2 — "Thermal Receipt Tape"
+  Static / CSS-only (mirrors server-rendered HTML; no JS required).
+  Aesthetic: denser timeline/list styled like a continuous roll of receipt tape.
+  Monospace type, perforated edges, a vertical timeline spine, dotted separators.
+  Category filter = a horizontal scrolling rail of pill-buttons. "All" active.
+-->
+<style>
+  :root{
+    --bg:#1c1b18;
+    --tape:#f7f5ef;
+    --tape-edge:#e9e5d8;
+    --ink:#23211c;
+    --ink-soft:#6b665a;
+    --rule:#d8d2c2;
+    --accent:#c9442e;        /* receipt red ink */
+    --accent-soft:#f3d9d2;
+    --link:#1f5e56;          /* product link green */
+    --badge:#33414f;
+    --warn:#9a6b00;
+    --warn-soft:#f7e9c6;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{
+    font-family:"SF Mono","JetBrains Mono","Cascadia Code","Courier New",ui-monospace,monospace;
+    background:
+      repeating-linear-gradient(0deg, rgba(0,0,0,.04) 0 1px, transparent 1px 5px),
+      var(--bg);
+    color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased;
+  }
+
+  /* ---------- Header ---------- */
+  header.app{
+    position:sticky;top:0;z-index:40;background:var(--bg);
+    border-bottom:1px solid rgba(255,255,255,.08);
+  }
+  .bar{
+    max-width:680px;margin:0 auto;padding:14px 16px;
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .brand{display:flex;align-items:center;gap:9px;color:#f7f5ef;text-decoration:none;letter-spacing:.06em;}
+  .brand b{font-size:18px;font-weight:700;}
+  .brand .mark{
+    color:var(--accent);font-weight:700;font-size:18px;border:1.5px solid var(--accent);
+    padding:1px 7px;border-radius:4px;
+  }
+  .logout{color:#b6b0a2;text-decoration:none;font-size:12px;letter-spacing:.05em;
+    border:1px solid rgba(255,255,255,.14);padding:6px 11px;border-radius:4px;}
+  .logout:hover{color:#fff;border-color:var(--accent);}
+
+  /* ---------- Filter rail ---------- */
+  .railwrap{position:sticky;top:53px;z-index:35;background:var(--bg);padding:10px 0 12px;}
+  .rail{
+    max-width:680px;margin:0 auto;padding:0 16px;display:flex;gap:7px;overflow-x:auto;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch;
+  }
+  .rail::-webkit-scrollbar{display:none;}
+  .pill{
+    flex:0 0 auto;font-size:12px;letter-spacing:.04em;text-decoration:none;
+    color:#cfc9ba;border:1px solid rgba(255,255,255,.16);padding:6px 12px;border-radius:3px;
+    background:rgba(255,255,255,.03);white-space:nowrap;text-transform:lowercase;
+  }
+  .pill:hover{color:#fff;border-color:var(--accent);}
+  .pill.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+  /* ---------- Tape (the receipt roll) ---------- */
+  .roll{max-width:680px;margin:0 auto 70px;padding:0 14px;}
+  .tape{
+    position:relative;background:var(--tape);color:var(--ink);
+    padding:10px 18px 26px;
+    /* perforated top & bottom edges */
+    -webkit-mask:
+      radial-gradient(circle at 8px 0, transparent 7px, #000 7px) top left / 16px 14px repeat-x,
+      radial-gradient(circle at 8px 14px, transparent 7px, #000 7px) bottom left / 16px 14px repeat-x,
+      linear-gradient(#000,#000);
+    -webkit-mask-composite:source-over;
+    mask:
+      radial-gradient(circle at 8px 0, transparent 7px, #000 7px) top left / 16px 14px repeat-x,
+      radial-gradient(circle at 8px 14px, transparent 7px, #000 7px) bottom left / 16px 14px repeat-x,
+      linear-gradient(#000,#000);
+    box-shadow:0 18px 40px -18px rgba(0,0,0,.7);
+  }
+  .tape::before{
+    content:"";position:absolute;inset:14px 0;pointer-events:none;
+    background:repeating-linear-gradient(90deg,transparent 0 3px, rgba(0,0,0,.012) 3px 4px);
+  }
+
+  .ticket-head{
+    text-align:center;border-bottom:2px dashed var(--rule);padding:16px 0 14px;margin-bottom:6px;
+  }
+  .ticket-head .big{font-size:15px;font-weight:700;letter-spacing:.28em;}
+  .ticket-head .sub{font-size:11px;color:var(--ink-soft);letter-spacing:.12em;margin-top:4px;}
+
+  /* worklist on tape */
+  .worklist{border-bottom:2px dashed var(--rule);padding-bottom:14px;margin-bottom:6px;}
+  .wl-title{font-size:11px;letter-spacing:.18em;color:var(--warn);font-weight:700;margin:10px 0 8px;
+    display:flex;align-items:center;gap:8px;}
+  .wl-title::after{content:"";flex:1;border-top:1px dotted var(--rule);}
+  .work{border-left:3px solid var(--warn);background:var(--warn-soft);padding:11px 12px;margin-bottom:10px;}
+  .work .txt{font-size:14px;font-weight:700;}
+  .opts{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0;}
+  .opt{font-size:11px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;user-select:none;
+    border:1px solid var(--ink-soft);padding:4px 9px;border-radius:3px;color:var(--ink-soft);background:#fffdf6;}
+  .opt input{position:absolute;opacity:0;width:0;height:0;}
+  .opt .b{width:12px;height:12px;border:1px solid var(--ink-soft);display:grid;place-items:center;font-size:9px;color:#fff;}
+  .opt input:checked ~ .b{background:var(--accent);border-color:var(--accent);}
+  .opt:has(input:checked){color:var(--accent);border-color:var(--accent);background:var(--accent-soft);}
+  .newrow{display:flex;gap:6px;flex-wrap:wrap;}
+  .newrow input[type=text]{flex:1;min-width:150px;font-family:inherit;font-size:12px;padding:7px 9px;
+    border:1px solid var(--rule);background:#fffdf6;color:var(--ink);}
+  .newrow input[type=text]:focus{outline:none;border-color:var(--accent);}
+  .save{font-family:inherit;font-size:11px;letter-spacing:.08em;font-weight:700;cursor:pointer;
+    background:var(--ink);color:#fff;border:none;padding:8px 14px;}
+  .save:hover{background:var(--accent);}
+
+  /* ---------- Timeline list ---------- */
+  .daytag{
+    display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:.16em;font-weight:700;
+    color:var(--ink);margin:16px 0 8px;text-transform:uppercase;
+  }
+  .daytag::after{content:"";flex:1;border-top:1px dotted var(--rule);}
+  .daytag em{font-style:normal;color:var(--accent);}
+
+  ul.items{list-style:none;margin:0;padding:0 0 0 4px;position:relative;}
+  ul.items::before{content:"";position:absolute;left:46px;top:6px;bottom:6px;border-left:2px dotted var(--rule);}
+  li.item{position:relative;display:grid;grid-template-columns:42px 1fr;gap:14px;padding:9px 0;}
+  li.item::before{content:"";position:absolute;left:42px;top:14px;width:9px;height:9px;border-radius:50%;
+    background:var(--tape);border:2px solid var(--accent);transform:translateX(-3px);}
+  .t{font-size:11px;color:var(--ink-soft);text-align:right;padding-top:1px;letter-spacing:.02em;}
+  .line .note{font-size:14px;font-weight:700;line-height:1.35;}
+  .meta{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;align-items:center;}
+  .badge{font-size:11px;text-decoration:none;color:#fff;background:var(--badge);padding:2px 8px;border-radius:2px;letter-spacing:.02em;}
+  .badge:hover{background:var(--accent);}
+  .badge.empty{color:var(--ink-soft);background:transparent;border:1px dashed var(--rule);}
+  .lnk{font-size:11px;text-decoration:none;color:var(--link);border:1px solid var(--link);
+    padding:1px 7px;border-radius:2px;display:inline-flex;align-items:center;gap:4px;background:#fff;}
+  .lnk:hover{background:var(--link);color:#fff;}
+  .lnk span{font-size:9px;}
+
+  .foot{text-align:center;border-top:2px dashed var(--rule);margin-top:14px;padding-top:14px;
+    font-size:11px;letter-spacing:.2em;color:var(--ink-soft);}
+
+  @media (max-width:480px){
+    li.item{grid-template-columns:38px 1fr;gap:10px;}
+    ul.items::before{left:42px;}
+    li.item::before{left:38px;}
+  }
+</style>
+</head>
+<body>
+  <header class="app">
+    <div class="bar">
+      <a class="brand" href="#"><span class="mark">P</span><b>PRINTODO</b></a>
+      <a class="logout" href="#">LOG OUT</a>
+    </div>
+  </header>
+
+  <div class="railwrap">
+    <nav class="rail" aria-label="Filter by category">
+      <a class="pill active" href="#">all</a>
+      <a class="pill" href="#">scotch</a>
+      <a class="pill" href="#">hunting</a>
+      <a class="pill" href="#">bow</a>
+      <a class="pill" href="#">home</a>
+      <a class="pill" href="#">decking</a>
+      <a class="pill" href="#">groceries</a>
+    </nav>
+  </div>
+
+  <div class="roll">
+    <div class="tape">
+      <div class="ticket-head">
+        <div class="big">PRINTODO</div>
+        <div class="sub">PRINT HISTORY &middot; PERSONAL LOG</div>
+      </div>
+
+      <!-- ===== Worklist ===== -->
+      <div class="worklist">
+        <div class="wl-title">** NEEDS CLASSIFYING (2) **</div>
+
+        <form class="work">
+          <div class="txt">Arran and Aberlour</div>
+          <div class="meta">
+            <a class="lnk" href="https://www.arranwhisky.com" target="_blank" rel="noopener">Arran <span>&#8599;</span></a>
+            <a class="lnk" href="https://www.aberlour.com" target="_blank" rel="noopener">Aberlour <span>&#8599;</span></a>
+          </div>
+          <div class="opts">
+            <label class="opt"><input type="checkbox" checked><span class="b">&#10003;</span>scotch</label>
+            <label class="opt"><input type="checkbox"><span class="b">&#10003;</span>hunting</label>
+            <label class="opt"><input type="checkbox"><span class="b">&#10003;</span>bow</label>
+            <label class="opt"><input type="checkbox"><span class="b">&#10003;</span>home</label>
+            <label class="opt"><input type="checkbox"><span class="b">&#10003;</span>decking</label>
+            <label class="opt"><input type="checkbox"><span class="b">&#10003;</span>groceries</label>
+          </div>
+          <div class="newrow">
+            <input type="text" placeholder="new category…">
+            <button type="button" class="save">SAVE</button>
+          </div>
+        </form>
+
+        <form class="work">
+          <div class="txt">Robi decking</div>
+          <div class="meta">
+            <a class="lnk" href="https://www.google.com/search?q=Robi+decking" target="_blank" rel="noopener">Robi <span>&#8599;</span></a>
+          </div>
+          <div class="opts">
+            <label class="opt"><input type="checkbox"><span class="b">&#10003;</span>scotch</label>
+            <label class="opt"><input type="checkbox"><span class="b">&#10003;</span>hunting</label>
+            <label class="opt"><input type="checkbox"><span class="b">&#10003;</span>bow</label>
+            <label class="opt"><input type="checkbox" checked><span class="b">&#10003;</span>home</label>
+            <label class="opt"><input type="checkbox" checked><span class="b">&#10003;</span>decking</label>
+            <label class="opt"><input type="checkbox"><span class="b">&#10003;</span>groceries</label>
+          </div>
+          <div class="newrow">
+            <input type="text" placeholder="new category…">
+            <button type="button" class="save">SAVE</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- ===== Timeline ===== -->
+      <div class="daytag">Wed, Jun 4, 2026 &middot; <em>today</em></div>
+      <ul class="items">
+        <li class="item">
+          <div class="t">3:42<br>PM</div>
+          <div class="line">
+            <div class="note">Trijicon bow sight</div>
+            <div class="meta">
+              <a class="badge" href="#">hunting</a><a class="badge" href="#">bow</a>
+              <a class="lnk" href="https://www.trijicon.com" target="_blank" rel="noopener">Trijicon <span>&#8599;</span></a>
+            </div>
+          </div>
+        </li>
+        <li class="item">
+          <div class="t">11:15<br>AM</div>
+          <div class="line">
+            <div class="note">Lagavulin 16</div>
+            <div class="meta">
+              <a class="badge" href="#">scotch</a>
+              <a class="lnk" href="https://www.malts.com" target="_blank" rel="noopener">Lagavulin <span>&#8599;</span></a>
+            </div>
+          </div>
+        </li>
+      </ul>
+
+      <div class="daytag">Tue, Jun 3, 2026</div>
+      <ul class="items">
+        <li class="item">
+          <div class="t">6:20<br>PM</div>
+          <div class="line">
+            <div class="note">Pick up milk and eggs</div>
+            <div class="meta"><a class="badge" href="#">groceries</a></div>
+          </div>
+        </li>
+        <li class="item">
+          <div class="t">9:05<br>AM</div>
+          <div class="line">
+            <div class="note">Ledger backup phrase reminder</div>
+            <div class="meta"><span class="badge empty">uncategorized</span></div>
+          </div>
+        </li>
+      </ul>
+
+      <div class="daytag">Sun, Jun 1, 2026</div>
+      <ul class="items">
+        <li class="item">
+          <div class="t">2:00<br>PM</div>
+          <div class="line">
+            <div class="note">Aberlour A'bunadh</div>
+            <div class="meta">
+              <a class="badge" href="#">scotch</a>
+              <a class="lnk" href="https://www.aberlour.com" target="_blank" rel="noopener">Aberlour <span>&#8599;</span></a>
+            </div>
+          </div>
+        </li>
+        <li class="item">
+          <div class="t">1:10<br>PM</div>
+          <div class="line">
+            <div class="note">Robi decking screws</div>
+            <div class="meta">
+              <a class="badge" href="#">home</a><a class="badge" href="#">decking</a>
+              <a class="lnk" href="https://www.google.com/search?q=Robi+decking" target="_blank" rel="noopener">Robi <span>&#8599;</span></a>
+            </div>
+          </div>
+        </li>
+      </ul>
+
+      <div class="foot">* * * END OF TAPE * * *</div>
+    </div>
+  </div>
+</body>
+</html>
