@@ -24,6 +24,8 @@ spec:
           env:
             - name: ENVIRONMENT
               value: "production"
+            - name: USERNAME
+              value: "evan@evanfarrell.com"
             # Postgres — same shared evanfarrell-db cluster and wiring as the
             # upkeep/homebrewtech apps (doadmin credentials). Uses the existing
             # "defaultdb" database; GORM AutoMigrate creates printodo's tables.
