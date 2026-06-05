@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Printodo — App</title>
+<!--
+  DESIGN 3 — "Mint Console" (JS-INTERACTIVE)
+  Data-driven vanilla JS. Sample data embedded as a JS array.
+  Features:
+   - Live category filtering (chips) with no reload + animated re-render
+   - Search box that filters by note text / brand
+   - Toggle grouping: by Date  <->  by Category
+   - Interactive classify pills (toggle), inline new-category field, Save removes from worklist
+   - Result counts update live
+  Aesthetic: cool, modern, "fresh mint" light app with a soft glass header.
+-->
+<style>
+  :root{
+    --bg:#eef3f1;
+    --surface:#ffffff;
+    --surface-2:#f4f8f6;
+    --ink:#13261f;
+    --muted:#5f7269;
+    --line:#e0e8e4;
+    --accent:#0f9d70;        /* mint green */
+    --accent-deep:#0b7a57;
+    --accent-soft:#dbf1e8;
+    --brand:#e2705a;         /* coral for product links */
+    --brand-soft:#fbe4de;
+    --tag:#3a5a8c;           /* category badge */
+    --tag-soft:#e2ebf6;
+    --warn:#caa14a;
+    --warn-soft:#fbf2db;
+    --radius:18px;
+    --shadow:0 1px 2px rgba(19,38,31,.05), 0 16px 40px -22px rgba(19,38,31,.35);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{
+    font-family:"Hanken Grotesk","Avenir Next","Segoe UI",system-ui,-apple-system,sans-serif;
+    background:
+      radial-gradient(110% 60% at 100% 0%, #e6f3ee 0, transparent 55%),
+      radial-gradient(90% 50% at 0% 0%, #eef0e8 0, transparent 50%),
+      var(--bg);
+    background-attachment:fixed;color:var(--ink);-webkit-font-smoothing:antialiased;line-height:1.45;
+  }
+  a{color:inherit;}
+
+  header.app{position:sticky;top:0;z-index:50;
+    background:rgba(238,243,241,.78);backdrop-filter:saturate(160%) blur(12px);
+    border-bottom:1px solid var(--line);}
+  .bar{max-width:720px;margin:0 auto;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .brand{display:flex;align-items:center;gap:10px;text-decoration:none;}
+  .brand .logo{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent-deep));
+    display:grid;place-items:center;color:#fff;font-weight:800;box-shadow:0 6px 14px -4px rgba(15,157,112,.6);}
+  .brand b{font-size:20px;font-weight:800;letter-spacing:-.01em;}
+  .logout{font-size:13px;color:var(--muted);text-decoration:none;border:1px solid var(--line);
+    background:var(--surface);padding:7px 13px;border-radius:999px;}
+  .logout:hover{color:var(--accent-deep);border-color:var(--accent);}
+
+  main{max-width:720px;margin:0 auto;padding:14px 16px 90px;}
+
+  /* search + grouping toggle */
+  .controls{display:flex;gap:10px;margin:8px 0 12px;align-items:center;}
+  .search{flex:1;position:relative;}
+  .search svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted);}
+  .search input{width:100%;font:inherit;font-size:15px;padding:12px 14px 12px 38px;border-radius:13px;
+    border:1px solid var(--line);background:var(--surface);color:var(--ink);box-shadow:var(--shadow);}
+  .search input:focus{outline:none;border-color:var(--accent);}
+  .toggle{display:flex;background:var(--surface);border:1px solid var(--line);border-radius:13px;
+    padding:3px;box-shadow:var(--shadow);}
+  .toggle button{font:inherit;font-size:13px;font-weight:700;color:var(--muted);background:none;border:none;
+    padding:9px 13px;border-radius:10px;cursor:pointer;white-space:nowrap;}
+  .toggle button.on{background:var(--accent);color:#fff;}
+
+  .chips{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 12px;scrollbar-width:none;}
+  .chips::-webkit-scrollbar{display:none;}
+  .chip{flex:0 0 auto;font:inherit;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;
+    color:var(--muted);background:var(--surface);border:1px solid var(--line);padding:8px 14px;border-radius:999px;
+    transition:.15s;}
+  .chip:hover{border-color:var(--accent);color:var(--accent-deep);}
+  .chip.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .chip .n{opacity:.6;margin-left:5px;font-weight:600;}
+
+  .sechead{font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);
+    margin:22px 2px 11px;display:flex;align-items:center;gap:8px;}
+  .sechead .pill{background:var(--accent-soft);color:var(--accent-deep);border-radius:999px;padding:1px 9px;font-size:11px;letter-spacing:.04em;}
+
+  /* worklist */
+  .work{background:linear-gradient(180deg,#fffdf5,#fff);border:1px solid var(--warn-soft);border-left:4px solid var(--warn);
+    border-radius:var(--radius);padding:15px 16px;margin-bottom:13px;box-shadow:var(--shadow);
+    animation:pop .25s ease;}
+  @keyframes pop{from{opacity:0;transform:translateY(6px) scale(.99);}to{opacity:1;transform:none;}}
+  .work .txt{font-size:18px;font-weight:700;}
+  .work .links{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px;}
+  .opts{display:flex;flex-wrap:wrap;gap:7px;margin:13px 0 11px;}
+  .optpill{font:inherit;font-size:13px;font-weight:700;cursor:pointer;user-select:none;
+    border:1px dashed var(--line);color:var(--muted);background:var(--surface);padding:7px 13px;border-radius:999px;
+    display:inline-flex;align-items:center;gap:6px;transition:.12s;}
+  .optpill .tick{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--muted);display:grid;place-items:center;
+    font-size:9px;color:#fff;line-height:1;}
+  .optpill.sel{border-style:solid;border-color:var(--accent);color:var(--accent-deep);background:var(--accent-soft);}
+  .optpill.sel .tick{background:var(--accent);border-color:var(--accent);}
+  .newrow{display:flex;gap:8px;flex-wrap:wrap;}
+  .newrow input{flex:1;min-width:150px;font:inherit;font-size:14px;padding:10px 12px;border-radius:11px;
+    border:1px solid var(--line);background:var(--surface);color:var(--ink);}
+  .newrow input:focus{outline:none;border-color:var(--accent);}
+  .save{font:inherit;font-size:13px;font-weight:800;color:#fff;background:var(--accent);border:none;
+    border-radius:11px;padding:10px 18px;cursor:pointer;}
+  .save:hover{background:var(--accent-deep);}
+
+  /* groups */
+  .group{margin-bottom:6px;}
+  .ghead{font-size:14px;font-weight:800;margin:18px 2px 9px;display:flex;align-items:baseline;gap:9px;}
+  .ghead small{font-weight:600;color:var(--muted);font-size:12px;}
+  .cards{display:grid;gap:11px;}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:13px 15px;
+    box-shadow:var(--shadow);display:grid;grid-template-columns:auto 1fr;gap:13px;align-items:start;
+    animation:pop .22s ease;}
+  .when{font-size:12px;font-weight:800;color:var(--accent-deep);background:var(--accent-soft);border-radius:9px;
+    padding:5px 8px;text-align:center;min-width:52px;white-space:nowrap;line-height:1.2;}
+  .note{font-size:16px;font-weight:700;line-height:1.35;}
+  .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .badge{font:inherit;font-size:12px;font-weight:700;cursor:pointer;border:none;color:var(--tag);background:var(--tag-soft);
+    padding:3px 11px;border-radius:999px;}
+  .badge:hover{background:var(--tag);color:#fff;}
+  .badge.empty{color:var(--muted);background:transparent;border:1px dashed var(--line);font-style:italic;cursor:default;}
+  .lnk{font-size:12px;font-weight:700;text-decoration:none;color:var(--brand);background:var(--brand-soft);
+    padding:3px 10px;border-radius:7px;display:inline-flex;align-items:center;gap:5px;}
+  .lnk:hover{background:var(--brand);color:#fff;}
+  .lnk svg{width:11px;height:11px;}
+
+  .empty-state{text-align:center;color:var(--muted);padding:40px 0;font-size:15px;}
+  @media (max-width:480px){
+    .card{grid-template-columns:1fr;}
+    .when{justify-self:start;}
+    .controls{flex-wrap:wrap;}
+    .toggle{width:100%;}
+    .toggle button{flex:1;}
+  }
+</style>
+</head>
+<body>
+  <header class="app">
+    <div class="bar">
+      <a class="brand" href="#"><span class="logo">P</span><b>Printodo</b></a>
+      <a class="logout" href="#">Log out</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="controls">
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="search" type="search" placeholder="Search notes & brands…">
+      </div>
+      <div class="toggle" id="toggle">
+        <button data-mode="date" class="on">By date</button>
+        <button data-mode="category">By category</button>
+      </div>
+    </div>
+
+    <nav class="chips" id="chips" aria-label="Filter by category"></nav>
+
+    <div class="sechead" id="wlhead">Needs classifying <span class="pill" id="wlcount">0</span></div>
+    <div id="worklist"></div>
+
+    <div class="sechead">History</div>
+    <div id="history"></div>
+  </main>
+
+<script>
+/* ---------- Sample data ---------- */
+const CATEGORIES = ["scotch","hunting","bow","home","decking","groceries"];
+
+let worklist = [
+  { id:"w1", text:"Arran and Aberlour", suggested:["scotch"],
+    links:[{name:"Arran",url:"https://www.arranwhisky.com"},{name:"Aberlour",url:"https://www.aberlour.com"}] },
+  { id:"w2", text:"Robi decking", suggested:["home","decking"],
+    links:[{name:"Robi",url:"https://www.google.com/search?q=Robi+decking"}] },
+];
+
+const history = [
+  { date:"Wednesday, Jun 4, 2026", label:"Today", iso:"2026-06-04", notes:[
+    { time:"3:42 PM", text:"Trijicon bow sight", cats:["hunting","bow"], links:[{name:"Trijicon",url:"https://www.trijicon.com"}] },
+    { time:"11:15 AM", text:"Lagavulin 16", cats:["scotch"], links:[{name:"Lagavulin",url:"https://www.malts.com"}] },
+  ]},
+  { date:"Tuesday, Jun 3, 2026", iso:"2026-06-03", notes:[
+    { time:"6:20 PM", text:"Pick up milk and eggs", cats:["groceries"], links:[] },
+    { time:"9:05 AM", text:"Ledger backup phrase reminder", cats:[], links:[] },
+  ]},
+  { date:"Sunday, Jun 1, 2026", iso:"2026-06-01", notes:[
+    { time:"2:00 PM", text:"Aberlour A'bunadh", cats:["scotch"], links:[{name:"Aberlour",url:"https://www.aberlour.com"}] },
+    { time:"1:10 PM", text:"Robi decking screws", cats:["home","decking"], links:[{name:"Robi",url:"https://www.google.com/search?q=Robi+decking"}] },
+  ]},
+];
+
+/* selections for worklist forms */
+const selections = {};
+worklist.forEach(w => selections[w.id] = new Set(w.suggested));
+
+let activeCat = "all";
+let mode = "date";
+let query = "";
+
+const ext = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M7 17L17 7M9 7h8v8"/></svg>`;
+const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+function allNotes(){
+  const flat = [];
+  history.forEach(d => d.notes.forEach(n => flat.push({...n, date:d.date, label:d.label, iso:d.iso})));
+  return flat;
+}
+function matches(n){
+  if(activeCat!=="all" && !n.cats.includes(activeCat)) return false;
+  if(query){
+    const q = query.toLowerCase();
+    const hay = (n.text + " " + n.links.map(l=>l.name).join(" ")).toLowerCase();
+    if(!hay.includes(q)) return false;
+  }
+  return true;
+}
+function badges(n){
+  let h = n.cats.map(c=>`<button class="badge" data-cat="${c}">${esc(c)}</button>`).join("");
+  if(n.cats.length===0) h += `<span class="badge empty">uncategorized</span>`;
+  const links = n.links.map(l=>`<a class="lnk" href="${l.url}" target="_blank" rel="noopener">${esc(l.name)} ${ext}</a>`).join("");
+  return `<div class="meta">${h}${links}</div>`;
+}
+function noteCard(n){
+  return `<article class="card">
+    <div class="when">${esc(n.time)}</div>
+    <div><div class="note">${esc(n.text)}</div>${badges(n)}</div>
+  </article>`;
+}
+
+/* ---------- Chips ---------- */
+function renderChips(){
+  const counts = {all:0}; CATEGORIES.forEach(c=>counts[c]=0);
+  allNotes().forEach(n=>{ counts.all++; n.cats.forEach(c=>{ if(counts[c]!==undefined) counts[c]++; }); });
+  const items = [["all","All"], ...CATEGORIES.map(c=>[c,c])];
+  document.getElementById("chips").innerHTML = items.map(([key,lbl])=>
+    `<button class="chip ${activeCat===key?"active":""}" data-cat="${key}">${esc(lbl)}<span class="n">${counts[key]}</span></button>`
+  ).join("");
+}
+
+/* ---------- Worklist ---------- */
+function renderWorklist(){
+  document.getElementById("wlcount").textContent = worklist.length;
+  const head = document.getElementById("wlhead");
+  const wl = document.getElementById("worklist");
+  if(worklist.length===0){ head.style.display="none"; wl.innerHTML=""; return; }
+  head.style.display="";
+  wl.innerHTML = worklist.map(w=>{
+    const links = w.links.map(l=>`<a class="lnk" href="${l.url}" target="_blank" rel="noopener">${esc(l.name)} ${ext}</a>`).join("");
+    const sel = selections[w.id];
+    const pills = CATEGORIES.map(c=>
+      `<button class="optpill ${sel.has(c)?"sel":""}" data-w="${w.id}" data-c="${c}">
+        <span class="tick">&#10003;</span>${esc(c)}</button>`).join("");
+    return `<form class="work" data-id="${w.id}">
+      <div class="txt">${esc(w.text)}</div>
+      <div class="links">${links}</div>
+      <div class="opts">${pills}</div>
+      <div class="newrow">
+        <input type="text" placeholder="Add a new category…" data-new="${w.id}">
+        <button type="button" class="save" data-save="${w.id}">Save</button>
+      </div>
+    </form>`;
+  }).join("");
+}
+
+/* ---------- History ---------- */
+function renderHistory(){
+  const host = document.getElementById("history");
+  const notes = allNotes().filter(matches);
+  if(notes.length===0){
+    host.innerHTML = `<div class="empty-state">No notes match this view.</div>`; return;
+  }
+  if(mode==="date"){
+    host.innerHTML = history.map(d=>{
+      const ns = d.notes.filter(matches);
+      if(ns.length===0) return "";
+      return `<section class="group">
+        <h2 class="ghead">${esc(d.date)} ${d.label?`<small>${esc(d.label)}</small>`:""}</h2>
+        <div class="cards">${ns.map(noteCard).join("")}</div>
+      </section>`;
+    }).join("");
+  } else {
+    // group by category
+    const groups = {};
+    notes.forEach(n=>{
+      const keys = n.cats.length? n.cats : ["uncategorized"];
+      keys.forEach(k=>{ (groups[k]=groups[k]||[]).push(n); });
+    });
+    const order = [...CATEGORIES, "uncategorized"].filter(k=>groups[k]);
+    host.innerHTML = order.map(k=>`<section class="group">
+      <h2 class="ghead">${esc(k)} <small>${groups[k].length} note${groups[k].length>1?"s":""}</small></h2>
+      <div class="cards">${groups[k].map(noteCard).join("")}</div>
+    </section>`).join("");
+  }
+}
+
+function renderAll(){ renderChips(); renderWorklist(); renderHistory(); }
+
+/* ---------- Events (delegated) ---------- */
+document.addEventListener("click", e=>{
+  const chip = e.target.closest(".chip");
+  if(chip){ activeCat = chip.dataset.cat; renderAll(); return; }
+
+  const badge = e.target.closest(".badge[data-cat]");
+  if(badge){ activeCat = badge.dataset.cat; renderAll(); window.scrollTo({top:0,behavior:"smooth"}); return; }
+
+  const pill = e.target.closest(".optpill");
+  if(pill){
+    const s = selections[pill.dataset.w];
+    s.has(pill.dataset.c) ? s.delete(pill.dataset.c) : s.add(pill.dataset.c);
+    pill.classList.toggle("sel");
+    return;
+  }
+  const save = e.target.closest(".save");
+  if(save){
+    const id = save.dataset.save;
+    const field = document.querySelector(`[data-new="${id}"]`);
+    if(field && field.value.trim()){
+      field.value.split(",").map(s=>s.trim()).filter(Boolean).forEach(c=>{
+        if(!CATEGORIES.includes(c)) CATEGORIES.push(c);
+        selections[id].add(c);
+      });
+    }
+    // simulate saving: drop from worklist
+    worklist = worklist.filter(w=>w.id!==id);
+    delete selections[id];
+    renderAll();
+    return;
+  }
+});
+
+document.getElementById("toggle").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  mode = b.dataset.mode;
+  document.querySelectorAll("#toggle button").forEach(x=>x.classList.toggle("on", x===b));
+  renderHistory();
+});
+
+document.getElementById("search").addEventListener("input", e=>{
+  query = e.target.value; renderHistory();
+});
+
+renderAll();
+</script>
+</body>
+</html>

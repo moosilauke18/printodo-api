@@ -1,12 +1,13 @@
 package main
 
 import (
-	"github.com/auth0/go-jwt-middleware"
-	"github.com/dgrijalva/jwt-go"
-	"github.com/didip/tollbooth"
-	"github.com/gorilla/handlers"
 	"net/http"
 	"time"
+
+	jwtmiddleware "github.com/auth0/go-jwt-middleware"
+	"github.com/didip/tollbooth"
+	jwt "github.com/form3tech-oss/jwt-go"
+	"github.com/gorilla/handlers"
 )
 
 func recoveryHandler(h http.Handler) http.Handler {
@@ -15,6 +16,10 @@ func recoveryHandler(h http.Handler) http.Handler {
 
 func timeoutHandler(h http.Handler) http.Handler {
 	return http.TimeoutHandler(h, 1*time.Second, "timed out")
+}
+
+func adminTimeoutHandler(h http.Handler) http.Handler {
+	return http.TimeoutHandler(h, 15*time.Second, "timed out")
 }
 
 func jwtMiddleware(h http.Handler) http.Handler {

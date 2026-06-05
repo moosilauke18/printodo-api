@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: printodo-api
+spec:
+  selector:
+    app: printodo-api
+  ports:
+    - port: 80
+      name: "http"
+      targetPort: 8000
+#    - port: 443
+#      name: "https"

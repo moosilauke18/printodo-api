@@ -3,13 +3,16 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/boltdb/bolt"
-	"github.com/dgrijalva/jwt-go"
 	"io"
 	"log"
 	"net/http"
+
+	"github.com/dgrijalva/jwt-go"
 )
 
+// MessageHandler is hit by the mobile app (POST /message). It records the item
+// as history (which also enqueues it for the printer) and kicks off an
+// asynchronous AI category suggestion. Response contract is unchanged ("OK").
 func (api *API) MessageHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	decoder := json.NewDecoder(r.Body)
@@ -29,21 +32,19 @@ func (api *API) MessageHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Println(message)
-	err = api.db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucketIfNotExists([]byte("notes"))
-		if err != nil {
-			return fmt.Errorf("create bucket: %s", err)
-		}
 
-		id, err := b.NextSequence()
-		if err != nil {
-			return fmt.Errorf("next sequence: %s", err)
-		}
-		return b.Put(itob(id), []byte(message.Message))
-	})
+	item, err := api.CreateItem(message.Message)
 	if err != nil {
-		panic(err)
+		log.Println(err)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Failed to store message"))
+		return
 	}
+
+	// Suggest categories in the background so it's ready by the time the user
+	// visits the admin site, without slowing down the print path.
+	go api.suggestCategories(item.ID, item.Text)
+
 	w.Write([]byte("OK"))
 }
 
@@ -83,36 +84,13 @@ func (api *API) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Write([]byte(fmt.Sprintf("{\"token\": \"%s\"}", ss)))
 }
+
+// MessagesHandler is hit by the printer worker (GET /messages). It returns the
+// text of every not-yet-printed item as a JSON array of strings — unchanged
+// contract.
 func (api *API) MessagesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	var n int
-	err := api.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("notes"))
-		n = b.Stats().KeyN
-		return nil
-	})
-	if err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(err.Error()))
-		return
-	}
-	messages := make([]string, n)
-
-	err = api.db.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("notes"))
-		count := 0
-		err = b.ForEach(func(k, v []byte) error {
-			messages[count] = string(v)
-			count += 1
-			return nil
-		})
-		if err != nil {
-			return fmt.Errorf("create bucket: %s", err)
-		}
-
-		return err
-	})
+	messages, err := api.PendingTexts()
 	if err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -120,27 +98,20 @@ func (api *API) MessagesHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	encoder := json.NewEncoder(w)
-	err = encoder.Encode(&messages)
-	if err != nil {
+	if err := encoder.Encode(&messages); err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
 		return
 	}
 }
+
+// ClearMessagesHandler is hit by the printer worker (DELETE /messages) after it
+// prints. It clears the queue by marking pending items printed, preserving them
+// as browsable history rather than deleting — unchanged contract ("OK").
 func (api *API) ClearMessagesHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	err := api.db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucketIfNotExists([]byte("notes"))
-		if err != nil {
-			return fmt.Errorf("create bucket: %s", err)
-		}
-		b.ForEach(func(k, v []byte) error {
-			return b.Delete(k)
-		})
-		return nil
-	})
-	if err != nil {
+	if err := api.MarkPendingPrinted(); err != nil {
 		log.Println(err)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))

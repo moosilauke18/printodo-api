@@ -1,10 +1,12 @@
-all: 
+IMAGE ?= ghcr.io/moosilauke18/printodo-api
+
+all:
 	go build && ./printodo-api
 
 docker: docker-build docker-push
 
 docker-build:
-	docker build -t evandev/printodo-api .
+	docker build -t $(IMAGE) .
 
 docker-push:
-	docker push evandev/printodo-api
+	docker push $(IMAGE)

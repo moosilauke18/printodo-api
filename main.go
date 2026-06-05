@@ -1,12 +1,13 @@
 package main
 
 import (
-	"github.com/boltdb/bolt"
-	"github.com/justinas/alice"
 	"log"
+	"net/http"
 
 	"github.com/gorilla/mux"
-	"net/http"
+	"github.com/justinas/alice"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 var (
@@ -17,11 +18,13 @@ var (
 
 func main() {
 
-	db, err := bolt.Open("notes.db", 0600, nil)
+	db, err := gorm.Open(postgres.Open(buildDSN()), &gorm.Config{})
 	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
+	if err := db.AutoMigrate(&Item{}, &Category{}); err != nil {
+		log.Fatal(err)
+	}
 
 	api := &API{
 		Username:   getEnv("USERNAME", "test"),
@@ -31,12 +34,11 @@ func main() {
 		db:         db,
 	}
 	JWT_SECRET = api.SigningKey
-	if api.Env == "dev" {
-		isDevelopment = true
-	} else {
-		isDevelopment = false
-	}
+	isDevelopment = api.Env == "dev"
 	port := getEnv("PORT", "8000")
+
+	// One-time import of any legacy BoltDB data into Postgres.
+	api.importBoltData("notes.db")
 
 	stdMiddleware := alice.New(
 		timeoutHandler,
@@ -44,15 +46,26 @@ func main() {
 	)
 	unsecureMiddleware := stdMiddleware.Append(rateLimitMiddleware)
 	secureMiddleware := stdMiddleware.Append(jwtMiddleware)
+	// The browser admin site needs more headroom than the 1s API timeout and
+	// uses cookie auth instead of the header JWT middleware.
+	adminMiddleware := alice.New(adminTimeoutHandler, recoveryHandler)
 
 	r := mux.NewRouter()
+
+	// Browser-facing admin website (cookie auth).
+	r.Handle("/admin/login", adminMiddleware.ThenFunc(api.handleAdminLogin)).Methods("GET", "POST")
+	r.Handle("/admin/logout", adminMiddleware.ThenFunc(api.handleAdminLogout)).Methods("GET")
+	r.Handle("/admin", adminMiddleware.ThenFunc(api.adminAuth(api.handleAdminDashboard))).Methods("GET")
+	r.Handle("/admin/data", adminMiddleware.ThenFunc(api.adminAuth(api.handleAdminData))).Methods("GET")
+	r.Handle("/admin/items/{id}/classify", adminMiddleware.ThenFunc(api.adminAuth(api.handleAdminClassify))).Methods("POST")
+
+	// JSON API for the mobile app and the printer worker (unchanged contracts).
 	client := r.Headers("Content-Type", "application/json").Methods("POST").Subrouter()
 	printer := r.Headers("User-Agent", "todo-printer/1.0").Headers("Content-Type", "application/json").Subrouter()
 	client.Handle("/login", unsecureMiddleware.ThenFunc(api.LoginHandler))
 	client.Handle("/message", secureMiddleware.ThenFunc(api.MessageHandler))
 	printer.Handle("/messages", secureMiddleware.ThenFunc(api.MessagesHandler)).Methods("GET")
 	printer.Handle("/messages", secureMiddleware.ThenFunc(api.ClearMessagesHandler)).Methods("DELETE")
-	http.Handle("/", r)
 
 	log.Printf("[STARTING] Running server on port: %v", port)
 	if err := http.ListenAndServe(":"+port, r); err != nil {

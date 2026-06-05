@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: printodo-api
+  labels:
+    app: printodo-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: printodo-api
+  template:
+    metadata:
+      labels:
+        app: printodo-api
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: printodo-api
+          image: ghcr.io/moosilauke18/printodo-api:latest
+          ports:
+            - containerPort: 8000
+          env:
+            - name: ENVIRONMENT
+              value: "production"
+            # Postgres — same shared evanfarrell-db cluster and wiring as the
+            # upkeep/homebrewtech apps (doadmin credentials). Uses the existing
+            # "defaultdb" database; GORM AutoMigrate creates printodo's tables.
+            - name: PG_DB
+              value: defaultdb
+            - name: PG_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: evanfarrell-db-private-connection
+                  key: host
+            - name: PG_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: evanfarrell-db-private-connection
+                  key: port
+            - name: PG_USER
+              valueFrom:
+                secretKeyRef:
+                  name: evanfarrell-db-default-credentials
+                  key: username
+            - name: PG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: evanfarrell-db-default-credentials
+                  key: password
+            # App login (USERNAME defaults to "test"), JWT signing, and AI key.
+            - name: PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: printodo-secret
+                  key: password
+            - name: JWT_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: printodo-secret
+                  key: jwt-signing-key
+            # Optional: enables AI categories + brand links. App runs without it.
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: printodo-secret
+                  key: anthropic-api-key
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"

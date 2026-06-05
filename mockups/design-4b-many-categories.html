@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Printodo — Night Console</title>
+<!--
+  DESIGN 4b — "Night Console" / MANY CATEGORIES
+  Iteration on Design 4. Same dark "Night Console" aesthetic, header, summary stats,
+  "needs classifying" worklist, collapsible day groups, company/product links, mobile drawer.
+
+  CHANGED: only the category sidebar (+ its mobile drawer), redesigned to scale to ~85 categories:
+   - "Filter categories…" input at the TOP of the sidebar that instantly narrows the list (separate from main notes search).
+   - Category list is scrollable inside a fixed-height panel (sticky on desktop) with a subtle custom scrollbar.
+   - Per-category count badge kept on every row.
+   - Organization: pinned "All" + a collapsible "Most used" top-N section, then the rest alphabetically
+     with sticky A/B/C letter dividers. Total category count shown ("85 categories").
+   - Mobile drawer mirrors all of the above (filter + scroll inside drawer).
+-->
+<style>
+  :root{
+    --bg:#0c0f14;
+    --panel:#12161d;
+    --panel-2:#171c25;
+    --line:#222a35;
+    --text:#dfe6ef;
+    --muted:#8290a1;
+    --amber:#ffb454;       /* primary accent */
+    --amber-soft:rgba(255,180,84,.14);
+    --cyan:#46d6c8;        /* product links */
+    --cyan-soft:rgba(70,214,200,.14);
+    --tag:#9db4ff;         /* category badges */
+    --tag-soft:rgba(157,180,255,.14);
+    --warn:#ff7a59;
+    --warn-soft:rgba(255,122,89,.12);
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{
+    font-family:"Space Mono","IBM Plex Mono",ui-monospace,"SF Mono",monospace;
+    background:
+      radial-gradient(80% 50% at 100% -10%, rgba(255,180,84,.10), transparent 60%),
+      radial-gradient(70% 45% at -10% 110%, rgba(70,214,200,.08), transparent 55%),
+      var(--bg);
+    background-attachment:fixed;color:var(--text);-webkit-font-smoothing:antialiased;line-height:1.5;
+  }
+  a{color:inherit;}
+
+  header.app{position:sticky;top:0;z-index:60;background:rgba(12,15,20,.82);backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);}
+  .bar{max-width:980px;margin:0 auto;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .brand{display:flex;align-items:center;gap:10px;text-decoration:none;letter-spacing:.04em;}
+  .brand .logo{width:30px;height:30px;border-radius:8px;border:1.5px solid var(--amber);color:var(--amber);
+    display:grid;place-items:center;font-weight:700;box-shadow:0 0 18px -4px var(--amber);}
+  .brand b{font-size:18px;font-weight:700;}
+  .brand b span{color:var(--amber);}
+  .right{display:flex;align-items:center;gap:8px;}
+  .filterbtn{display:none;font:inherit;font-size:12px;color:var(--text);background:var(--panel-2);
+    border:1px solid var(--line);padding:8px 12px;border-radius:8px;cursor:pointer;align-items:center;gap:7px;}
+  .filterbtn .dotn{background:var(--amber);color:#0c0f14;border-radius:999px;font-size:10px;padding:0 6px;font-weight:700;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .logout{font-size:12px;color:var(--muted);text-decoration:none;border:1px solid var(--line);background:var(--panel-2);
+    padding:8px 12px;border-radius:8px;letter-spacing:.03em;}
+  .logout:hover{color:var(--amber);border-color:var(--amber);}
+
+  .layout{max-width:980px;margin:0 auto;padding:16px;display:grid;grid-template-columns:240px 1fr;gap:18px;align-items:start;}
+
+  /* ===== sidebar (redesigned for many categories) ===== */
+  aside{position:sticky;top:74px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    display:flex;flex-direction:column;
+    /* keep the whole sidebar inside the viewport so the list scrolls, not the page */
+    max-height:calc(100vh - 90px);overflow:hidden;}
+  .side-head{padding:14px 14px 10px;border-bottom:1px solid var(--line);flex:0 0 auto;}
+  .side-title{font-size:10px;letter-spacing:.22em;color:var(--muted);text-transform:uppercase;
+    display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 11px;}
+  .side-title .total{color:var(--amber);background:var(--amber-soft);border:1px solid rgba(255,180,84,.25);
+    border-radius:999px;padding:1px 8px;letter-spacing:.06em;text-transform:none;font-size:10px;}
+
+  .catfilter{position:relative;}
+  .catfilter svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);width:14px;height:14px;color:var(--muted);}
+  .catfilter input{width:100%;font:inherit;font-size:12.5px;color:var(--text);background:var(--panel-2);
+    border:1px solid var(--line);border-radius:9px;padding:9px 28px 9px 32px;}
+  .catfilter input:focus{outline:none;border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-soft);}
+  .catfilter input::placeholder{color:var(--muted);}
+  .catfilter .clr{position:absolute;right:7px;top:50%;transform:translateY(-50%);width:18px;height:18px;
+    border:none;background:transparent;color:var(--muted);cursor:pointer;border-radius:50%;display:none;
+    align-items:center;justify-content:center;font-size:13px;line-height:1;}
+  .catfilter .clr:hover{color:var(--text);background:var(--panel);}
+  .catfilter.has-val .clr{display:flex;}
+
+  /* "All" pinned row sits above the scroll area so it's always reachable */
+  .catpinned{padding:8px 14px;flex:0 0 auto;border-bottom:1px solid var(--line);}
+
+  .catscroll{flex:1 1 auto;overflow-y:auto;overflow-x:hidden;padding:8px 10px 12px;min-height:120px;
+    scrollbar-width:thin;scrollbar-color:#2c3543 transparent;}
+  .catscroll::-webkit-scrollbar{width:9px;}
+  .catscroll::-webkit-scrollbar-track{background:transparent;}
+  .catscroll::-webkit-scrollbar-thumb{background:#2c3543;border-radius:999px;border:2px solid var(--panel);}
+  .catscroll::-webkit-scrollbar-thumb:hover{background:#3a4656;}
+
+  .catlist{display:flex;flex-direction:column;gap:4px;}
+
+  .catgrouphead{font-size:9px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;
+    padding:9px 6px 5px;display:flex;align-items:center;gap:7px;}
+  .catgrouphead .star{color:var(--amber);}
+  /* sticky alphabet divider while scrolling */
+  .catletter{position:sticky;top:0;z-index:2;font-size:10px;font-weight:700;letter-spacing:.1em;color:var(--amber);
+    background:linear-gradient(var(--panel),var(--panel) 70%,rgba(18,22,29,0));
+    padding:6px 6px 3px;}
+
+  .catbtn{font:inherit;font-size:13px;text-align:left;cursor:pointer;color:var(--muted);background:transparent;
+    border:1px solid transparent;border-radius:9px;padding:8px 11px;display:flex;align-items:center;justify-content:space-between;
+    gap:8px;transition:.13s;width:100%;}
+  .catbtn:hover{color:var(--text);background:var(--panel-2);}
+  .catbtn.active{color:var(--amber);background:var(--amber-soft);border-color:rgba(255,180,84,.3);}
+  .catbtn .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .catbtn .nm mark{background:rgba(255,180,84,.3);color:var(--amber);border-radius:3px;padding:0 1px;}
+  .catbtn .c{flex:0 0 auto;font-size:11px;color:var(--muted);background:var(--panel-2);border-radius:999px;padding:1px 8px;}
+  .catbtn.active .c{color:var(--amber);background:rgba(255,180,84,.18);}
+  .catbtn .c.zero{opacity:.45;}
+
+  .catpinned .catbtn{padding:9px 11px;}
+
+  .moretoggle{font:inherit;font-size:11px;color:var(--muted);background:transparent;border:1px dashed var(--line);
+    border-radius:9px;padding:7px 11px;width:100%;cursor:pointer;text-align:center;margin-top:2px;letter-spacing:.04em;}
+  .moretoggle:hover{color:var(--text);border-color:var(--muted);}
+
+  .catempty{color:var(--muted);font-size:12px;text-align:center;padding:22px 8px;}
+
+  /* ===== content (unchanged from Design 4) ===== */
+  .content{min-width:0;}
+  .search{position:relative;margin-bottom:14px;}
+  .search svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);width:16px;height:16px;color:var(--muted);}
+  .search input{width:100%;font:inherit;font-size:14px;color:var(--text);background:var(--panel);border:1px solid var(--line);
+    border-radius:11px;padding:12px 14px 12px 38px;}
+  .search input:focus{outline:none;border-color:var(--amber);box-shadow:0 0 0 3px var(--amber-soft);}
+
+  .summary{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+  .stat{flex:1;min-width:90px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:11px 13px;}
+  .stat .num{font-size:22px;font-weight:700;color:var(--amber);line-height:1;}
+  .stat .lbl{font-size:10px;letter-spacing:.12em;color:var(--muted);text-transform:uppercase;margin-top:6px;}
+
+  .sechead{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin:18px 0 10px;
+    display:flex;align-items:center;gap:9px;}
+  .sechead::before{content:"//";color:var(--amber);}
+
+  /* worklist */
+  .work{background:var(--warn-soft);border:1px solid rgba(255,122,89,.3);border-left:3px solid var(--warn);
+    border-radius:var(--radius);padding:14px;margin-bottom:12px;animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  @keyframes out{to{opacity:0;transform:translateX(40px);height:0;margin:0;padding:0;border-width:0;}}
+  .work.removing{animation:out .35s forwards;overflow:hidden;}
+  .work .txt{font-size:16px;font-weight:700;color:#fff;}
+  .work .links{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .opts{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 10px;}
+  .optpill{font:inherit;font-size:12px;cursor:pointer;user-select:none;color:var(--muted);background:var(--panel-2);
+    border:1px solid var(--line);border-radius:999px;padding:6px 12px;display:inline-flex;align-items:center;gap:6px;transition:.12s;}
+  .optpill .tk{width:13px;height:13px;border-radius:50%;border:1px solid var(--muted);display:grid;place-items:center;font-size:8px;color:#0c0f14;}
+  .optpill.sel{color:var(--amber);border-color:var(--amber);background:var(--amber-soft);}
+  .optpill.sel .tk{background:var(--amber);border-color:var(--amber);}
+  .newrow{display:flex;gap:7px;flex-wrap:wrap;}
+  .newrow input{flex:1;min-width:140px;font:inherit;font-size:13px;color:var(--text);background:var(--panel);
+    border:1px solid var(--line);border-radius:9px;padding:9px 11px;}
+  .newrow input:focus{outline:none;border-color:var(--amber);}
+  .save{font:inherit;font-size:12px;font-weight:700;letter-spacing:.05em;cursor:pointer;color:#0c0f14;
+    background:var(--amber);border:none;border-radius:9px;padding:9px 16px;}
+  .save:hover{filter:brightness(1.08);}
+
+  /* day groups (collapsible) */
+  .day{margin-bottom:10px;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;background:var(--panel);}
+  .dhead{display:flex;align-items:center;gap:10px;width:100%;font:inherit;cursor:pointer;background:var(--panel-2);
+    border:none;color:var(--text);padding:12px 14px;text-align:left;}
+  .dhead .caret{transition:transform .2s;color:var(--amber);font-size:12px;}
+  .day.collapsed .caret{transform:rotate(-90deg);}
+  .dhead .dt{font-size:13px;font-weight:700;}
+  .dhead .lab{font-size:10px;color:#0c0f14;background:var(--amber);border-radius:999px;padding:1px 8px;font-weight:700;letter-spacing:.06em;}
+  .dhead .cnt{margin-left:auto;font-size:11px;color:var(--muted);}
+  .dbody{padding:6px 14px 12px;}
+  .day.collapsed .dbody{display:none;}
+
+  .note-row{display:grid;grid-template-columns:64px 1fr;gap:12px;padding:11px 0;border-top:1px dashed var(--line);align-items:start;}
+  .note-row:first-child{border-top:none;}
+  .tm{font-size:11px;color:var(--amber);letter-spacing:.02em;padding-top:2px;}
+  .nt{font-size:14px;font-weight:700;color:#fff;line-height:1.35;}
+  .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;}
+  .badge{font:inherit;font-size:11px;cursor:pointer;border:none;color:var(--tag);background:var(--tag-soft);
+    border-radius:999px;padding:3px 10px;}
+  .badge:hover{color:#fff;background:var(--tag);}
+  .badge.empty{color:var(--muted);background:transparent;border:1px dashed var(--line);cursor:default;}
+  .lnk{font-size:11px;text-decoration:none;color:var(--cyan);background:var(--cyan-soft);border:1px solid rgba(70,214,200,.3);
+    border-radius:6px;padding:2px 9px;display:inline-flex;align-items:center;gap:5px;}
+  .lnk:hover{background:var(--cyan);color:#0c0f14;}
+  .lnk b{font-weight:400;font-size:10px;}
+
+  .empty-state{color:var(--muted);text-align:center;padding:40px 0;border:1px dashed var(--line);border-radius:var(--radius);}
+
+  /* toast */
+  #toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--amber);color:#0c0f14;font-size:13px;font-weight:700;padding:11px 18px;border-radius:10px;
+    box-shadow:0 10px 30px -8px rgba(0,0,0,.6);transition:.25s;z-index:80;pointer-events:none;}
+  #toast.show{transform:translateX(-50%) translateY(0);opacity:1;}
+
+  /* mobile */
+  .scrim{display:none;}
+  @media (max-width:760px){
+    .layout{grid-template-columns:1fr;}
+    .filterbtn{display:inline-flex;}
+    aside{position:fixed;top:0;left:0;bottom:0;width:84%;max-width:320px;z-index:70;border-radius:0;
+      max-height:none;transform:translateX(-105%);transition:transform .25s;}
+    aside.open{transform:none;box-shadow:30px 0 60px -20px rgba(0,0,0,.7);}
+    .scrim.open{display:block;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:65;}
+    .note-row{grid-template-columns:56px 1fr;}
+  }
+</style>
+</head>
+<body>
+  <header class="app">
+    <div class="bar">
+      <a class="brand" href="#"><span class="logo">P</span><b>print<span>odo</span></b></a>
+      <div class="right">
+        <button class="filterbtn" id="openFilter">Filter <span class="dotn" id="filterDot">All</span></button>
+        <a class="logout" href="#">Log out</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="scrim" id="scrim"></div>
+  <div class="layout">
+    <aside id="sidebar">
+      <div class="side-head">
+        <div class="side-title"><span>Categories</span><span class="total" id="catTotal">0 categories</span></div>
+        <div class="catfilter" id="catfilterWrap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="catfilter" type="search" placeholder="Filter categories…" autocomplete="off">
+          <button class="clr" id="catfilterClr" type="button" aria-label="Clear filter">&times;</button>
+        </div>
+      </div>
+      <div class="catpinned" id="catpinned"></div>
+      <div class="catscroll" id="catscroll">
+        <div class="catlist" id="catlist"></div>
+      </div>
+    </aside>
+
+    <div class="content">
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="search" type="search" placeholder="Search notes & brands…">
+      </div>
+
+      <div class="summary">
+        <div class="stat"><div class="num" id="sTotal">0</div><div class="lbl">Notes shown</div></div>
+        <div class="stat"><div class="num" id="sQueue">0</div><div class="lbl">To classify</div></div>
+        <div class="stat"><div class="num" id="sCats">0</div><div class="lbl">Categories</div></div>
+      </div>
+
+      <div class="sechead" id="wlhead">Needs classifying</div>
+      <div id="worklist"></div>
+
+      <div class="sechead">History</div>
+      <div id="history"></div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+<script>
+/* ~85 realistic categories with varied counts. Counts here are "lifetime" totals used for
+   ordering "Most used" + the badge number; many are 0/low to exercise the long-list UI. */
+const CATEGORY_DATA = [
+  ["scotch",47],["whisky",31],["bourbon",18],["wine",22],["beer",9],["coffee",26],["tea",4],
+  ["hunting",38],["bow",14],["rifle",11],["ammo",7],["fishing",6],["camping",8],["hiking",12],
+  ["home",41],["decking",15],["plumbing",5],["electrical",3],["paint",6],["tools",19],["hardware",10],
+  ["garden",13],["lawn",7],["landscaping",2],["firewood",4],
+  ["groceries",52],["produce",8],["meat",11],["dairy",6],["bakery",3],["snacks",9],["spices",5],
+  ["recipes",17],["restaurants",24],["takeout",6],
+  ["books",28],["audiobooks",9],["podcasts",7],["movies",21],["tv",13],["music",16],["games",11],
+  ["electronics",33],["computers",19],["phones",8],["cameras",6],["audio",14],["cables",4],
+  ["software",12],["subscriptions",9],["security",5],["crypto",7],["ledger",3],
+  ["car",27],["tires",6],["maintenance",10],["parts",8],["motorcycle",4],
+  ["clothing",23],["shoes",11],["watches",9],["jewelry",2],["bags",5],["outdoor-gear",16],
+  ["health",18],["fitness",14],["supplements",8],["medical",4],["dental",2],
+  ["travel",26],["flights",9],["hotels",11],["rental-cars",3],["destinations",7],
+  ["gifts",15],["birthdays",6],["holidays",8],["kids",12],["pets",10],["dog",7],
+  ["finance",13],["taxes",4],["insurance",5],["investing",9],["bills",6],
+  ["work",20],["projects",17],["ideas",24],["reading-list",19],["misc",31],["uncategorized",0],
+  ["antiques",1],["woodworking",6],["3d-printing",3],["smart-home",8]
+];
+const MOST_USED_N = 6;          // size of the "Most used" pinned section
+const FILTER_REVEAL_THRESHOLD = 5; // when filtering, auto-show full list if few enough matches
+
+let CATEGORIES = CATEGORY_DATA.map(c => c[0]);
+const BASE_COUNT = Object.fromEntries(CATEGORY_DATA);   // lifetime totals for ordering/badges
+
+let worklist = [
+  { id:"w1", text:"Arran and Aberlour", suggested:["scotch"],
+    links:[{name:"Arran",url:"https://www.arranwhisky.com"},{name:"Aberlour",url:"https://www.aberlour.com"}] },
+  { id:"w2", text:"Robi decking", suggested:["home","decking"],
+    links:[{name:"Robi",url:"https://www.google.com/search?q=Robi+decking"}] },
+];
+
+const history = [
+  { date:"Wednesday, Jun 4, 2026", label:"Today", notes:[
+    { time:"3:42 PM", text:"Trijicon bow sight", cats:["hunting","bow"], links:[{name:"Trijicon",url:"https://www.trijicon.com"}] },
+    { time:"11:15 AM", text:"Lagavulin 16", cats:["scotch","whisky"], links:[{name:"Lagavulin",url:"https://www.malts.com"}] },
+    { time:"8:30 AM", text:"AeroPress filters", cats:["coffee"], links:[{name:"AeroPress",url:"https://aeropress.com"}] },
+  ]},
+  { date:"Tuesday, Jun 3, 2026", notes:[
+    { time:"6:20 PM", text:"Pick up milk and eggs", cats:["groceries","dairy"], links:[] },
+    { time:"2:11 PM", text:"New trail running shoes", cats:["shoes","fitness","outdoor-gear"], links:[{name:"Hoka",url:"https://www.hoka.com"}] },
+    { time:"9:05 AM", text:"Ledger backup phrase reminder", cats:[], links:[] },
+  ]},
+  { date:"Sunday, Jun 1, 2026", notes:[
+    { time:"2:00 PM", text:"Aberlour A'bunadh", cats:["scotch","whisky"], links:[{name:"Aberlour",url:"https://www.aberlour.com"}] },
+    { time:"1:10 PM", text:"Robi decking screws", cats:["home","decking","hardware"], links:[{name:"Robi",url:"https://www.google.com/search?q=Robi+decking"}] },
+    { time:"10:42 AM", text:"Replace front tires before road trip", cats:["car","tires","travel"], links:[{name:"Michelin",url:"https://www.michelinman.com"}] },
+  ]},
+  { date:"Friday, May 30, 2026", notes:[
+    { time:"7:15 PM", text:"Dune Part Two re-watch", cats:["movies"], links:[] },
+    { time:"3:00 PM", text:"Dog food + flea meds", cats:["pets","dog"], links:[{name:"Chewy",url:"https://www.chewy.com"}] },
+    { time:"9:50 AM", text:"Smart thermostat install", cats:["home","smart-home","electrical"], links:[{name:"Ecobee",url:"https://www.ecobee.com"}] },
+  ]},
+];
+
+const selections = {};
+worklist.forEach(w => selections[w.id] = new Set(w.suggested));
+const collapsed = new Set();           // collapsed day indices
+let activeCat = "all", query = "";
+let catFilter = "";                     // sidebar filter text
+let showAllAlpha = false;              // "show all / fewer" toggle for the alphabetical tail
+
+const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+
+function allNotes(){
+  const f=[]; history.forEach((d,i)=>d.notes.forEach(n=>f.push({...n,_day:i}))); return f;
+}
+function matches(n){
+  if(activeCat!=="all" && !n.cats.includes(activeCat)) return false;
+  if(query){
+    const q=query.toLowerCase();
+    const hay=(n.text+" "+n.links.map(l=>l.name).join(" ")).toLowerCase();
+    if(!hay.includes(q)) return false;
+  }
+  return true;
+}
+function metaHTML(n){
+  let b=n.cats.map(c=>`<button class="badge" data-cat="${c}">${esc(c)}</button>`).join("");
+  if(!n.cats.length) b+=`<span class="badge empty">uncategorized</span>`;
+  const l=n.links.map(x=>`<a class="lnk" href="${x.url}" target="_blank" rel="noopener">${esc(x.name)} <b>&#8599;</b></a>`).join("");
+  return `<div class="meta">${b}${l}</div>`;
+}
+
+/* live counts = lifetime base + anything in the in-memory history sample */
+function computeCounts(){
+  const counts={all:0}; CATEGORIES.forEach(c=>counts[c]=BASE_COUNT[c]||0);
+  allNotes().forEach(n=>{counts.all++; n.cats.forEach(c=>{ if(counts[c]!==undefined) counts[c]++; });});
+  return counts;
+}
+
+function highlight(name){
+  if(!catFilter) return esc(name);
+  const i = name.toLowerCase().indexOf(catFilter);
+  if(i<0) return esc(name);
+  return esc(name.slice(0,i)) + "<mark>" + esc(name.slice(i,i+catFilter.length)) + "</mark>" + esc(name.slice(i+catFilter.length));
+}
+
+function catRow(c, counts){
+  const z = (counts[c]||0)===0 ? " zero" : "";
+  return `<button class="catbtn ${activeCat===c?"active":""}" data-cat="${c}">
+    <span class="nm">${highlight(c)}</span><span class="c${z}">${counts[c]||0}</span></button>`;
+}
+
+function renderSidebar(){
+  const counts=computeCounts();
+
+  /* pinned "All" row — always visible, always reachable above the scroll area */
+  document.getElementById("catpinned").innerHTML =
+    `<button class="catbtn ${activeCat==="all"?"active":""}" data-cat="all">
+      <span class="nm">All</span><span class="c">${counts.all}</span></button>`;
+
+  document.getElementById("catTotal").textContent = `${CATEGORIES.length} categories`;
+  document.getElementById("sCats").textContent = CATEGORIES.length;
+
+  const f = catFilter;
+  const matchCat = c => !f || c.toLowerCase().includes(f);
+
+  let html = "";
+
+  if(f){
+    /* FILTER MODE: flat alphabetical list of matches, no sections (keeps it simple while narrowing). */
+    const hits = CATEGORIES.filter(matchCat).sort((a,b)=>a.localeCompare(b));
+    if(hits.length===0){
+      html = `<div class="catempty">No categories match “${esc(f)}”.</div>`;
+    }else{
+      html = hits.map(c=>catRow(c,counts)).join("");
+    }
+  }else{
+    /* DEFAULT MODE: "Most used" top-N, then the rest alphabetically with sticky letter dividers. */
+    const ranked = [...CATEGORIES].sort((a,b)=>(counts[b]||0)-(counts[a]||0) || a.localeCompare(b));
+    const top = ranked.slice(0, MOST_USED_N);
+    const topSet = new Set(top);
+
+    html += `<div class="catgrouphead"><span class="star">&#9733;</span> Most used</div>`;
+    html += top.map(c=>catRow(c,counts)).join("");
+
+    const rest = CATEGORIES.filter(c=>!topSet.has(c)).sort((a,b)=>a.localeCompare(b));
+    html += `<div class="catgrouphead">A &ndash; Z</div>`;
+
+    let lastLetter="";
+    rest.forEach(c=>{
+      const L = c[0].toUpperCase();
+      if(L!==lastLetter){ html += `<div class="catletter">${esc(L)}</div>`; lastLetter=L; }
+      html += catRow(c,counts);
+    });
+  }
+
+  document.getElementById("catlist").innerHTML = html;
+
+  /* filter dot in mobile header */
+  document.getElementById("filterDot").textContent = activeCat==="all"?"All":activeCat;
+  document.getElementById("catfilterWrap").classList.toggle("has-val", !!f);
+}
+
+function renderWorklist(){
+  const head=document.getElementById("wlhead"), host=document.getElementById("worklist");
+  if(worklist.length===0){ head.textContent="Needs classifying — all clear ✓"; host.innerHTML=""; return; }
+  head.textContent=`Needs classifying (${worklist.length})`;
+  host.innerHTML = worklist.map(w=>{
+    const links=w.links.map(l=>`<a class="lnk" href="${l.url}" target="_blank" rel="noopener">${esc(l.name)} <b>&#8599;</b></a>`).join("");
+    const sel=selections[w.id];
+    /* show suggested + currently-selected pills (avoid rendering all 85 here) */
+    const pillCats = [...new Set([...w.suggested, ...sel])];
+    const pills=pillCats.map(c=>`<button class="optpill ${sel.has(c)?"sel":""}" data-w="${w.id}" data-c="${c}"><span class="tk">&#10003;</span>${esc(c)}</button>`).join("");
+    return `<form class="work" data-id="${w.id}">
+      <div class="txt">${esc(w.text)}</div>
+      <div class="links">${links}</div>
+      <div class="opts">${pills}</div>
+      <div class="newrow">
+        <input type="text" placeholder="add category (comma-separated)…" data-new="${w.id}">
+        <button type="button" class="save" data-save="${w.id}">Save</button>
+      </div>
+    </form>`;
+  }).join("");
+}
+
+function renderHistory(){
+  const host=document.getElementById("history");
+  let total=0;
+  const html = history.map((d,i)=>{
+    const ns=d.notes.filter(matches); total+=ns.length;
+    if(ns.length===0) return "";
+    const isCol = collapsed.has(i);
+    return `<section class="day ${isCol?"collapsed":""}" data-day="${i}">
+      <button class="dhead" data-toggle="${i}">
+        <span class="caret">&#9660;</span>
+        <span class="dt">${esc(d.date)}</span>
+        ${d.label?`<span class="lab">${esc(d.label)}</span>`:""}
+        <span class="cnt">${ns.length} note${ns.length>1?"s":""}</span>
+      </button>
+      <div class="dbody">
+        ${ns.map(n=>`<div class="note-row">
+          <div class="tm">${esc(n.time)}</div>
+          <div><div class="nt">${esc(n.text)}</div>${metaHTML(n)}</div>
+        </div>`).join("")}
+      </div>
+    </section>`;
+  }).join("");
+  host.innerHTML = html || `<div class="empty-state">No notes match this view.</div>`;
+  document.getElementById("sTotal").textContent = total;
+  document.getElementById("sQueue").textContent = worklist.length;
+}
+
+function renderAll(){ renderSidebar(); renderWorklist(); renderHistory(); }
+
+let toastTimer;
+function toast(msg){
+  const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"),2200);
+}
+
+/* drawer */
+function setDrawer(open){
+  document.getElementById("sidebar").classList.toggle("open",open);
+  document.getElementById("scrim").classList.toggle("open",open);
+}
+
+document.addEventListener("click", e=>{
+  const cat=e.target.closest(".catbtn");
+  if(cat){ activeCat=cat.dataset.cat; setDrawer(false); renderAll(); return; }
+
+  const badge=e.target.closest(".badge[data-cat]");
+  if(badge){ activeCat=badge.dataset.cat; renderAll(); window.scrollTo({top:0,behavior:"smooth"}); return; }
+
+  const tog=e.target.closest(".dhead");
+  if(tog){ const i=+tog.dataset.toggle; collapsed.has(i)?collapsed.delete(i):collapsed.add(i);
+    tog.closest(".day").classList.toggle("collapsed"); return; }
+
+  const pill=e.target.closest(".optpill");
+  if(pill){ const s=selections[pill.dataset.w];
+    s.has(pill.dataset.c)?s.delete(pill.dataset.c):s.add(pill.dataset.c);
+    pill.classList.toggle("sel"); return; }
+
+  const save=e.target.closest(".save");
+  if(save){
+    const id=save.dataset.save;
+    const field=document.querySelector(`[data-new="${id}"]`);
+    if(field && field.value.trim()){
+      field.value.split(",").map(s=>s.trim()).filter(Boolean).forEach(c=>{
+        if(!CATEGORIES.includes(c)){ CATEGORIES.push(c); BASE_COUNT[c]=0; }
+        selections[id].add(c);
+      });
+    }
+    const chosen=[...selections[id]];
+    const card=save.closest(".work"); card.classList.add("removing");
+    setTimeout(()=>{
+      worklist=worklist.filter(w=>w.id!==id); delete selections[id]; renderAll();
+    },340);
+    toast(chosen.length? `Saved · ${chosen.join(", ")}` : "Saved");
+    return;
+  }
+
+  if(e.target.closest("#catfilterClr")){
+    catFilter=""; document.getElementById("catfilter").value=""; renderSidebar();
+    document.getElementById("catfilter").focus(); return;
+  }
+
+  if(e.target.closest("#openFilter")){ setDrawer(true);
+    setTimeout(()=>document.getElementById("catfilter").focus(),260); return; }
+  if(e.target.id==="scrim") setDrawer(false);
+});
+
+/* main notes search (unchanged location/behavior) */
+document.getElementById("search").addEventListener("input", e=>{ query=e.target.value; renderHistory(); });
+
+/* sidebar category filter — instant narrowing, separate from notes search */
+document.getElementById("catfilter").addEventListener("input", e=>{
+  catFilter = e.target.value.trim().toLowerCase();
+  renderSidebar();
+  document.getElementById("catscroll").scrollTop = 0;
+});
+
+renderAll();
+</script>
+</body>
+</html>

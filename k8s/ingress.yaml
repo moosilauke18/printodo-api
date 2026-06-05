@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: printodo-api
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-issuer
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: "todo.evanfarrell.com"
+    http:
+      paths:
+      - pathType: Prefix
+        path: "/"
+        backend:
+          service:
+            name: printodo-api
+            port:
+              number: 80
+  tls:
+    - hosts:
+      - todo.evanfarrell.com
+      secretName: printodo-api-tls

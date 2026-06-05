@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Printodo — Pick a design</title>
+<style>
+  :root{
+    --bg:#11140f;--panel:#1a1e16;--line:#2b3124;--text:#eef1e6;--muted:#9aa48c;
+    --accent:#c2603a;--mint:#0f9d70;--amber:#ffb454;--teal:#2f6f6a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+  body{font-family:"Hanken Grotesk","Avenir Next","Segoe UI",system-ui,sans-serif;
+    background:
+      radial-gradient(80% 50% at 100% -10%, rgba(255,180,84,.10), transparent 60%),
+      radial-gradient(70% 45% at -10% 110%, rgba(15,157,112,.10), transparent 55%),
+      var(--bg);
+    color:var(--text);line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh;}
+  .wrap{max-width:780px;margin:0 auto;padding:40px 18px 70px;}
+  header{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+  .logo{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--accent),#8c3d22);
+    display:grid;place-items:center;font-weight:800;font-size:20px;color:#fff;box-shadow:0 8px 20px -6px rgba(194,96,58,.6);}
+  h1{font-size:30px;margin:0;letter-spacing:-.01em;}
+  .lede{color:var(--muted);font-size:16px;max-width:60ch;margin:6px 0 30px;}
+  .lede b{color:var(--text);}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .card{display:block;text-decoration:none;color:inherit;background:var(--panel);border:1px solid var(--line);
+    border-radius:18px;padding:20px;transition:.16s;position:relative;overflow:hidden;}
+  .card:hover{transform:translateY(-3px);border-color:var(--accent);}
+  .card .bar{height:6px;border-radius:6px;margin-bottom:16px;}
+  .tag{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:3px 9px;border-radius:999px;}
+  .tag.static{background:rgba(154,164,140,.18);color:var(--muted);}
+  .tag.js{background:rgba(255,180,84,.18);color:var(--amber);}
+  .num{font-size:12px;color:var(--muted);font-weight:700;letter-spacing:.08em;}
+  .card h2{font-size:20px;margin:12px 0 6px;}
+  .card p{color:var(--muted);font-size:14px;margin:0 0 14px;}
+  .go{font-size:13px;font-weight:800;color:var(--accent);display:inline-flex;align-items:center;gap:6px;}
+  .card:hover .go{gap:10px;}
+  .legend{margin-top:30px;font-size:13px;color:var(--muted);background:var(--panel);border:1px solid var(--line);
+    border-radius:14px;padding:14px 16px;}
+  .legend b{color:var(--text);}
+  @media (max-width:560px){ .grid{grid-template-columns:1fr;} h1{font-size:25px;} }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="logo">P</div>
+      <h1>Printodo — choose a look</h1>
+    </header>
+    <p class="lede">Four full designs of the print-history <b>view page</b>, all using the same sample
+      data so you can compare fairly. Two are <b>static</b> (how the real server-rendered page will work) and
+      two are <b>JavaScript-interactive</b> (live filtering, search, classify flow). Open one and click around —
+      best viewed on your phone.</p>
+
+    <div class="grid">
+      <a class="card" href="design-1-cards.html">
+        <div class="bar" style="background:linear-gradient(90deg,#c2603a,#2f6f6a)"></div>
+        <span class="tag static">Static · CSS only</span> <span class="num">01</span>
+        <h2>Warm Paper Cards</h2>
+        <p>Soft cream paper, terracotta &amp; teal accents, serif headings. Friendly, roomy cards. Filter chips up top.</p>
+        <span class="go">Open design 1 &rarr;</span>
+      </a>
+
+      <a class="card" href="design-2-timeline.html">
+        <div class="bar" style="background:linear-gradient(90deg,#c9442e,#1f5e56)"></div>
+        <span class="tag static">Static · CSS only</span> <span class="num">02</span>
+        <h2>Thermal Receipt Tape</h2>
+        <p>Dense monospace timeline styled like a real receipt roll — perforated edges, dotted rules, a timeline spine.</p>
+        <span class="go">Open design 2 &rarr;</span>
+      </a>
+
+      <a class="card" href="design-3-interactive-app.html">
+        <div class="bar" style="background:linear-gradient(90deg,#0f9d70,#e2705a)"></div>
+        <span class="tag js">JS · Interactive</span> <span class="num">03</span>
+        <h2>Mint Console</h2>
+        <p>Fresh light app: live category filter, search box, and a toggle to group <b>by date</b> or <b>by category</b>. Tap a badge to filter.</p>
+        <span class="go">Open design 3 &rarr;</span>
+      </a>
+
+      <a class="card" href="design-4-interactive-dark.html">
+        <div class="bar" style="background:linear-gradient(90deg,#ffb454,#46d6c8)"></div>
+        <span class="tag js">JS · Interactive</span> <span class="num">04</span>
+        <h2>Night Console</h2>
+        <p>Dark terminal/HUD vibe: sidebar filter (a slide-in drawer on mobile), collapsible days, summary stats, and a classify flow with toast confirmation.</p>
+        <span class="go">Open design 4 &rarr;</span>
+      </a>
+    </div>
+
+    <div class="legend">
+      <b>Which are interactive?</b> Designs <b>3 (Mint Console)</b> and <b>4 (Night Console)</b> run real
+      client-side JavaScript — filtering, search and the classify flow respond instantly with no page reload.
+      Designs 1 and 2 are static HTML/CSS and mirror how the actual server-rendered page will behave.
+    </div>
+  </div>
+</body>
+</html>
