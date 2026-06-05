@@ -197,6 +197,32 @@ func (api *API) handleAdminClassify(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// handleAdminEdit updates a note's text (e.g. fixing a typo). After the text
+// changes it refreshes the AI suggestions/links in the background.
+func (api *API) handleAdminEdit(w http.ResponseWriter, r *http.Request) {
+	idStr := mux.Vars(r)["id"]
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		http.Error(w, "bad item id", http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad form", http.StatusBadRequest)
+		return
+	}
+	text := strings.TrimSpace(r.FormValue("text"))
+	if text == "" {
+		http.Error(w, "text required", http.StatusBadRequest)
+		return
+	}
+	if err := api.UpdateItemText(uint(id), text); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	go api.suggestCategories(uint(id), text)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // renderLogin renders the login page, styled to match the dark view page.
 func (api *API) renderLogin(w http.ResponseWriter, errMsg string) {
 	errHTML := ""

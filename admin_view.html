@@ -156,6 +156,18 @@
   .note-row:first-child{border-top:none;}
   .tm{font-size:11px;color:var(--amber);letter-spacing:.02em;padding-top:2px;}
   .nt{font-size:14px;font-weight:700;color:#fff;line-height:1.35;}
+  .editbtn{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:0 4px;margin-left:6px;}
+  .editbtn:hover{color:var(--amber);}
+  .editbox{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+  .editinput{flex:1;min-width:160px;font:inherit;font-size:14px;color:var(--text);background:var(--panel);
+    border:1px solid var(--amber);border-radius:8px;padding:7px 10px;}
+  .editinput:focus{outline:none;box-shadow:0 0 0 3px var(--amber-soft);}
+  .editsavebtn{font:inherit;font-size:12px;font-weight:700;cursor:pointer;color:#0c0f14;background:var(--amber);
+    border:none;border-radius:8px;padding:7px 14px;}
+  .editsavebtn:hover{filter:brightness(1.08);}
+  .cancelbtn{font:inherit;font-size:12px;cursor:pointer;color:var(--muted);background:var(--panel-2);
+    border:1px solid var(--line);border-radius:8px;padding:7px 12px;}
+  .cancelbtn:hover{color:var(--text);}
   .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px;}
   .badge{font:inherit;font-size:11px;cursor:pointer;border:none;color:var(--tag);background:var(--tag-soft);
     border-radius:999px;padding:3px 10px;}
@@ -244,7 +256,7 @@ let worklist = [];
 let history = [];
 const selections = {};
 const collapsed = new Set();
-let activeCat = "all", query = "", catFilter = "";
+let activeCat = "all", query = "", catFilter = "", editingId = null;
 
 const esc = s => String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 
@@ -274,6 +286,7 @@ async function load(){
     let g = byKey[it.day_key];
     if(!g){ g = {date: it.date, label: it.label, notes: []}; byKey[it.day_key] = g; groups.push(g); }
     g.notes.push({
+      id: it.id,
       time: it.time,
       text: it.text,
       cats: it.categories || [],
@@ -412,7 +425,10 @@ function renderHistory(){
       <div class="dbody">
         ${ns.map(n=>`<div class="note-row">
           <div class="tm">${esc(n.time)}</div>
-          <div><div class="nt">${esc(n.text)}</div>${metaHTML(n)}</div>
+          <div>${editingId===n.id
+            ? `<div class="editbox"><input class="editinput" type="text" value="${esc(n.text)}" data-editinput="${n.id}"><button class="editsavebtn" data-editsave="${n.id}">Save</button><button class="cancelbtn" data-editcancel="1">Cancel</button></div>`
+            : `<div class="nt">${esc(n.text)}<button class="editbtn" data-edit="${n.id}" title="Edit note">&#9998;</button></div>`
+          }${metaHTML(n)}</div>
         </div>`).join("")}
       </div>
     </section>`;
@@ -478,6 +494,17 @@ document.addEventListener("click", e=>{
   const save=e.target.closest(".save");
   if(save){ saveItem(save.dataset.save, save.closest(".work")); return; }
 
+  const eb=e.target.closest(".editbtn");
+  if(eb){
+    editingId=Number(eb.dataset.edit); renderHistory();
+    const inp=document.querySelector(`[data-editinput="${editingId}"]`);
+    if(inp){ inp.focus(); inp.select(); }
+    return;
+  }
+  if(e.target.closest("[data-editcancel]")){ editingId=null; renderHistory(); return; }
+  const es=e.target.closest(".editsavebtn");
+  if(es){ saveEdit(Number(es.dataset.editsave)); return; }
+
   if(e.target.closest("#catfilterClr")){
     catFilter=""; const cf=document.getElementById("catfilter"); cf.value=""; renderSidebar(); cf.focus(); return;
   }
@@ -485,6 +512,31 @@ document.addEventListener("click", e=>{
   if(e.target.closest("#openFilter")){ setDrawer(true);
     setTimeout(()=>document.getElementById("catfilter").focus(),260); return; }
   if(e.target.id==="scrim") setDrawer(false);
+});
+
+function saveEdit(id){
+  const inp=document.querySelector(`[data-editinput="${id}"]`);
+  if(!inp) return;
+  const text=inp.value.trim();
+  if(!text){ toast("Note can't be empty"); return; }
+  const body=new URLSearchParams(); body.append("text", text);
+  fetch(`/admin/items/${id}/edit`,{
+    method:"POST",
+    headers:{"Content-Type":"application/x-www-form-urlencoded","Accept":"application/json"},
+    body,
+  }).then(r=>{
+    if(!r.ok) throw new Error("edit failed");
+    editingId=null; toast("Saved");
+    return load().then(renderAll);
+  }).catch(()=>toast("Edit failed — try again"));
+}
+
+// Enter saves an edit, Escape cancels.
+document.addEventListener("keydown", e=>{
+  const inp=e.target.closest && e.target.closest(".editinput");
+  if(!inp) return;
+  if(e.key==="Enter"){ e.preventDefault(); saveEdit(Number(inp.dataset.editinput)); }
+  else if(e.key==="Escape"){ editingId=null; renderHistory(); }
 });
 
 document.getElementById("search").addEventListener("input", e=>{ query=e.target.value; renderHistory(); });

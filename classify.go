@@ -97,6 +97,9 @@ Do two things:
    is about. Rules:
    - Be SPECIFIC. Choose the most precise category, never a broad catch-all.
        "Arran", "Aberlour", "Lagavulin" (whisky distilleries/bottles) -> ["scotch"]   (NOT "drinks" or "alcohol")
+       cocktail recipes / bar ingredients, or references to cocktail books
+       (PDT, NOMAD, D&C / Death & Co) -> ["cocktails"]. A bottled spirit may carry
+       its own category too, e.g. ["liqueur","cocktails"] or ["scotch","cocktails"].
        "Robi decking", deck boards/screws -> ["decking"]                               (NOT "hardware" or "home")
        "seedwell trays", seed-starting supplies -> ["seed starting","garden"]          (NOT "home")
        a bow sight -> ["hunting","bow"]
@@ -162,7 +165,40 @@ Reply with ONLY a JSON object, nothing else, of the form:
 	}
 
 	cats, links := parseAIResult(parsed.Content[0].Text)
+	cats = applyCategoryRules(text, cats)
 	return cats, links, nil
+}
+
+// categoryKeywordRules force a category onto any note whose text contains one of
+// the keywords, regardless of what the AI returned. Cocktail-book references and
+// the literal word "cocktail" always file under "cocktails" — in addition to any
+// other categories (e.g. liqueur, scotch).
+var categoryKeywordRules = []struct {
+	keywords []string
+	category string
+}{
+	{[]string{"cocktail", "nomad", "pdt", "d&c"}, "cocktails"},
+}
+
+func applyCategoryRules(text string, cats []string) []string {
+	lower := strings.ToLower(text)
+	have := map[string]bool{}
+	for _, c := range cats {
+		have[strings.ToLower(c)] = true
+	}
+	for _, rule := range categoryKeywordRules {
+		if have[rule.category] {
+			continue
+		}
+		for _, kw := range rule.keywords {
+			if strings.Contains(lower, kw) {
+				cats = append(cats, rule.category)
+				have[rule.category] = true
+				break
+			}
+		}
+	}
+	return cats
 }
 
 // parseAIResult extracts the JSON object from the model's reply, tolerating

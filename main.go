@@ -79,6 +79,7 @@ func main() {
 	r.Handle("/admin", adminMiddleware.ThenFunc(api.adminAuth(api.handleAdminDashboard))).Methods("GET")
 	r.Handle("/admin/data", adminMiddleware.ThenFunc(api.adminAuth(api.handleAdminData))).Methods("GET")
 	r.Handle("/admin/items/{id}/classify", adminMiddleware.ThenFunc(api.adminAuth(api.handleAdminClassify))).Methods("POST")
+	r.Handle("/admin/items/{id}/edit", adminMiddleware.ThenFunc(api.adminAuth(api.handleAdminEdit))).Methods("POST")
 
 	// JSON API for the mobile app and the printer worker (unchanged contracts).
 	client := r.Headers("Content-Type", "application/json").Methods("POST").Subrouter()

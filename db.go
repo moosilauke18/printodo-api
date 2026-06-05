@@ -82,6 +82,11 @@ func (api *API) AllCategoryNames() ([]string, error) {
 	return names, nil
 }
 
+// UpdateItemText changes a note's text.
+func (api *API) UpdateItemText(itemID uint, text string) error {
+	return api.db.Model(&Item{}).Where("id = ?", itemID).Update("text", text).Error
+}
+
 // ClassifyItem replaces an item's categories with the given names (creating any
 // new categories) and marks it classified. Empty/blank names are ignored.
 func (api *API) ClassifyItem(itemID uint, names []string) error {
