@@ -241,7 +241,7 @@
       <div class="sechead" id="wlhead">Needs classifying</div>
       <div id="worklist"></div>
 
-      <div class="sechead">History</div>
+      <div class="sechead" id="histhead">History</div>
       <div id="history"></div>
     </div>
   </div>
@@ -251,6 +251,7 @@
 <script>
 const MOST_USED_N = 6;       // size of the "Most used" pinned section
 const FLAT_LIST_MAX = 10;    // below this many categories, show a simple flat list
+const UNCLASSIFIED = "__unclassified__";  // pinned filter for not-yet-categorized notes
 
 let CATEGORIES = [];
 let worklist = [];
@@ -339,9 +340,12 @@ function catRow(c, counts){
 function renderSidebar(){
   const counts=computeCounts();
 
+  // Pinned above the scrolling category list: All, then Unclassified.
   document.getElementById("catpinned").innerHTML =
     `<button class="catbtn ${activeCat==="all"?"active":""}" data-cat="all">
-      <span class="nm">All</span><span class="c">${counts.all}</span></button>`;
+      <span class="nm">All</span><span class="c">${counts.all}</span></button>
+     <button class="catbtn ${activeCat===UNCLASSIFIED?"active":""}" data-cat="${UNCLASSIFIED}">
+      <span class="nm">Unclassified</span><span class="c">${worklist.length}</span></button>`;
 
   const label = CATEGORIES.length === 1 ? "category" : "categories";
   document.getElementById("catTotal").textContent = `${CATEGORIES.length} ${label}`;
@@ -382,12 +386,16 @@ function renderSidebar(){
   }
 
   document.getElementById("catlist").innerHTML = html;
-  document.getElementById("filterDot").textContent = activeCat==="all"?"All":activeCat;
+  document.getElementById("filterDot").textContent =
+    activeCat==="all" ? "All" : (activeCat===UNCLASSIFIED ? "Unclassified" : activeCat);
   document.getElementById("catfilterWrap").classList.toggle("has-val", !!f);
 }
 
 function renderWorklist(){
   const head=document.getElementById("wlhead"), host=document.getElementById("worklist");
+  // Only relevant on All and the Unclassified filter — hidden when viewing a category.
+  if(activeCat!=="all" && activeCat!==UNCLASSIFIED){ head.style.display="none"; host.innerHTML=""; return; }
+  head.style.display="";
   if(worklist.length===0){ head.textContent="Needs classifying — all clear ✓"; host.innerHTML=""; return; }
   head.textContent=`Needs classifying (${worklist.length})`;
   host.innerHTML = worklist.map(w=>{
@@ -412,7 +420,15 @@ function renderWorklist(){
 }
 
 function renderHistory(){
-  const host=document.getElementById("history");
+  const host=document.getElementById("history"), head=document.getElementById("histhead");
+  // The Unclassified filter is served entirely by the worklist above.
+  if(activeCat===UNCLASSIFIED){
+    head.style.display="none"; host.innerHTML="";
+    document.getElementById("sTotal").textContent=worklist.length;
+    document.getElementById("sQueue").textContent=worklist.length;
+    return;
+  }
+  head.style.display="";
   let total=0;
   const html = history.map((d,i)=>{
     const ns=d.notes.filter(matches); total+=ns.length;
