@@ -396,7 +396,7 @@ function renderWorklist(){
     // text field to add any other existing or brand-new category by name.
     const pillCats = [...new Set([...w.suggested, ...sel])];
     const pills=pillCats.map(c=>`<button type="button" class="optpill ${sel.has(c)?"sel":""}" data-w="${esc(w.id)}" data-c="${esc(c)}"><span class="tk">&#10003;</span>${esc(c)}</button>`).join("");
-    return `<form class="work" data-id="${esc(w.id)}">
+    return `<div class="work" data-id="${esc(w.id)}">
       <div class="txt">${esc(w.text)}</div>
       <div class="links">${links}</div>
       <div class="opts">${pills}</div>
@@ -404,7 +404,7 @@ function renderWorklist(){
         <input type="text" placeholder="add category (comma-separated)…" data-new="${esc(w.id)}">
         <button type="button" class="save" data-save="${esc(w.id)}">Save</button>
       </div>
-    </form>`;
+    </div>`;
   }).join("");
 }
 
@@ -531,12 +531,20 @@ function saveEdit(id){
   }).catch(()=>toast("Edit failed — try again"));
 }
 
-// Enter saves an edit, Escape cancels.
+// Keyboard: Enter saves (note edit or new-category), Escape cancels an edit.
 document.addEventListener("keydown", e=>{
-  const inp=e.target.closest && e.target.closest(".editinput");
-  if(!inp) return;
-  if(e.key==="Enter"){ e.preventDefault(); saveEdit(Number(inp.dataset.editinput)); }
-  else if(e.key==="Escape"){ editingId=null; renderHistory(); }
+  if(!e.target.closest) return;
+  const editInp=e.target.closest(".editinput");
+  if(editInp){
+    if(e.key==="Enter"){ e.preventDefault(); saveEdit(Number(editInp.dataset.editinput)); }
+    else if(e.key==="Escape"){ editingId=null; renderHistory(); }
+    return;
+  }
+  const newInp=e.target.closest("[data-new]");
+  if(newInp && e.key==="Enter"){
+    e.preventDefault();
+    saveItem(newInp.dataset.new, newInp.closest(".work"));
+  }
 });
 
 document.getElementById("search").addEventListener("input", e=>{ query=e.target.value; renderHistory(); });
