@@ -105,8 +105,13 @@ Do two things:
        a bow sight -> ["hunting","bow"]
    - NEVER use vague buckets like: misc, other, stuff, general, home, hardware,
      drinks, alcohol, software, tech, food.
-   - Reuse an existing category when it is the correct specific one; only invent a
-     new specific category when none fit.
+   - REUSE existing categories aggressively. The user's existing categories
+     (listed below) are authoritative: if any one fits, use its EXACT name and do
+     NOT invent a near-synonym (if "decking" exists use "decking", not "decks" or
+     "deck"; if "scotch" exists use "scotch", not "whisky"). Only create a new
+     category when nothing in the existing list fits.
+   - Singular and plural are the SAME category — never output both "cocktail" and
+     "cocktails"; use whichever form already exists.
    - A note may have several specific categories.
    - If you cannot confidently tell what the note refers to, return an EMPTY
      categories list — it is better to leave it unclassified than to guess. For
@@ -184,16 +189,16 @@ func applyCategoryRules(text string, cats []string) []string {
 	lower := strings.ToLower(text)
 	have := map[string]bool{}
 	for _, c := range cats {
-		have[strings.ToLower(c)] = true
+		have[canonicalCategoryKey(c)] = true
 	}
 	for _, rule := range categoryKeywordRules {
-		if have[rule.category] {
+		if have[canonicalCategoryKey(rule.category)] {
 			continue
 		}
 		for _, kw := range rule.keywords {
 			if strings.Contains(lower, kw) {
 				cats = append(cats, rule.category)
-				have[rule.category] = true
+				have[canonicalCategoryKey(rule.category)] = true
 				break
 			}
 		}

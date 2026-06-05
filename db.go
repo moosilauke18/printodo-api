@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -82,6 +83,48 @@ func (api *API) AllCategoryNames() ([]string, error) {
 	return names, nil
 }
 
+// canonicalCategoryKey normalizes a category name so simple case and
+// singular/plural variants collapse to one key ("Cocktail"/"cocktails" ->
+// "cocktail"), used to avoid creating duplicate categories.
+func canonicalCategoryKey(name string) string {
+	s := strings.ToLower(strings.TrimSpace(name))
+	switch {
+	case strings.HasSuffix(s, "ies") && len(s) > 3:
+		return s[:len(s)-3] + "y" // berries -> berry
+	case strings.HasSuffix(s, "ss"):
+		return s // glass, dress — don't strip
+	case strings.HasSuffix(s, "s") && len(s) > 1:
+		return s[:len(s)-1] // cocktails -> cocktail
+	}
+	return s
+}
+
+// resolveCategoryTx returns the category matching name — exactly, or by
+// canonical singular/plural key — creating a new one only if none exists.
+func resolveCategoryTx(tx *gorm.DB, name string) (Category, error) {
+	var existing Category
+	if err := tx.Where("name = ?", name).First(&existing).Error; err == nil {
+		return existing, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return Category{}, err
+	}
+	key := canonicalCategoryKey(name)
+	var all []Category
+	if err := tx.Find(&all).Error; err != nil {
+		return Category{}, err
+	}
+	for _, c := range all {
+		if canonicalCategoryKey(c.Name) == key {
+			return c, nil
+		}
+	}
+	nc := Category{Name: name}
+	if err := tx.Create(&nc).Error; err != nil {
+		return Category{}, err
+	}
+	return nc, nil
+}
+
 // UpdateItemText changes a note's text.
 func (api *API) UpdateItemText(itemID uint, text string) error {
 	return api.db.Model(&Item{}).Where("id = ?", itemID).Update("text", text).Error
@@ -100,14 +143,17 @@ func (api *API) ClassifyItem(itemID uint, names []string) error {
 		seen := map[string]bool{}
 		for _, raw := range names {
 			name := strings.TrimSpace(raw)
-			if name == "" || seen[strings.ToLower(name)] {
+			if name == "" {
 				continue
 			}
-			seen[strings.ToLower(name)] = true
-			cat := Category{Name: name}
-			// Reuse an existing category with this name, or create it.
-			if err := tx.Where("name = ?", name).
-				FirstOrCreate(&cat, Category{Name: name}).Error; err != nil {
+			// Dedup within this request by canonical (case/plural-insensitive) key.
+			key := canonicalCategoryKey(name)
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			cat, err := resolveCategoryTx(tx, name)
+			if err != nil {
 				return err
 			}
 			cats = append(cats, cat)
