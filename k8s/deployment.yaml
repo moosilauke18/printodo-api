@@ -44,12 +44,12 @@ spec:
             - name: PG_USER
               valueFrom:
                 secretKeyRef:
-                  name: evanfarrell-db-default-credentials
+                  name: printodo-db
                   key: username
             - name: PG_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: evanfarrell-db-default-credentials
+                  name: printodo-db
                   key: password
             # App login (USERNAME defaults to "test"), JWT signing, and AI key.
             - name: PASSWORD

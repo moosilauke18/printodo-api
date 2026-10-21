@@ -81,9 +81,10 @@ app:
 
 - `deployment.yaml` — pulls the private image `ghcr.io/moosilauke18/printodo-api`
   (via `imagePullSecrets: ghcr-secret`) and wires Postgres to the shared
-  `evanfarrell-db` cluster with doadmin credentials (`PG_*` from the DO-operator
-  configMap `evanfarrell-db-private-connection` and secret
-  `evanfarrell-db-default-credentials`), using the existing `defaultdb` database.
+  `evanfarrell-db` cluster as its own `printodo` user, database `printodo`
+  (`PG_HOST`/`PG_PORT` from the configMap `evanfarrell-db-private-connection`,
+  `PG_USER`/`PG_PASSWORD` from the secret `printodo-db`, which
+  `kubernetes/db-users/provision.sh` creates).
 - `service.yaml`, `ingress.yaml` — `todo.evanfarrell.com`, TLS via cert-manager.
 - `examples/secret.yaml` — template. Copy to `k8s/secret.yaml` (gitignored),
   fill in `password`, `jwt-signing-key`, `anthropic-api-key`, and apply once:
