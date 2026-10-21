@@ -1,6 +1,6 @@
 module github.com/moosilauke18/printodo-api
 
-go 1.25.10
+go 1.26.10
 
 require (
 	github.com/auth0/go-jwt-middleware v1.0.1
